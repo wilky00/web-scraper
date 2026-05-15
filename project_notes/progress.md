@@ -85,3 +85,14 @@
 - [x] 13 API tests in `tests/api/test_criteria_api.py` covering validate, create, version save, list, editor
   - NOTE: Used `app.dependency_overrides[require_operator]` for clean test isolation (FastAPI DI pattern)
   - NOTE: Sprint 2.1 (Criteria YAML Schema) was completed early in Sprint 1.1; 2.2 was the first new work
+
+## Phase 3 — Connectors
+
+### Sprint 3.1 — Connector Abstraction + Fixture — COMPLETE (verified green 2026-05-15, 149/149 tests, ruff+mypy clean)
+- [x] `app/connectors/base.py` — `ConnectorBase` ABC + `ConnectorResult` Pydantic schema
+- [x] `app/connectors/fixture.py` — `FixtureConnector` reads `*.json` from fixture dir, yields `ConnectorResult`
+- [x] `app/connectors/registry.py` — `ConnectorRegistry` maps connector names to instances
+- [x] `tests/fixtures/connector_responses/*.json` — valid (3 results), empty, and partial-data (2 results) fixtures
+- [x] `tests/unit/test_connectors.py` — 26 unit tests for fixture connector and registry
+  - NOTE: `ConnectorResult` is a Pydantic DTO (not the ORM model) — `job_id` is added by the job runner in Phase 6
+  - NOTE: `google_places` connector type logged but not registered until Sprint 3.2

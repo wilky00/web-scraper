@@ -1,0 +1,32 @@
+[
+  {
+    "place_id": "ChIJN1t_tDeuEmsRUsoyG83frY4",
+    "name": "Acme Roofing Co.",
+    "formatted_address": "123 Main St, Austin, TX 78701",
+    "website": "https://acmeroofing.example.com",
+    "formatted_phone_number": "+1 512-555-0101",
+    "types": ["roofing_contractor", "establishment"],
+    "rating": 4.7,
+    "user_ratings_total": 214
+  },
+  {
+    "place_id": "ChIJd8BlQ2BZwokRAFUEcm_qrcA",
+    "name": "Summit Storm Repair",
+    "formatted_address": "456 Oak Ave, Austin, TX 78702",
+    "website": "https://summitrepair.example.com",
+    "formatted_phone_number": "+1 512-555-0202",
+    "types": ["general_contractor", "establishment"],
+    "rating": 4.2,
+    "user_ratings_total": 89
+  },
+  {
+    "place_id": "ChIJpTvG15DL1IkRd8S0KlBVNTI",
+    "name": "Lone Star Exteriors",
+    "formatted_address": "789 Elm Blvd, Austin, TX 78703",
+    "website": "https://lonestarexteriors.example.com",
+    "formatted_phone_number": "+1 512-555-0303",
+    "types": ["roofing_contractor", "painter", "establishment"],
+    "rating": 3.9,
+    "user_ratings_total": 42
+  }
+]
