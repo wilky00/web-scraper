@@ -8,6 +8,7 @@
     <script src="https://cdn.tailwindcss.com"></script>
     <script>tailwind.config = { darkMode: 'class' }</script>
     <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.14.1/dist/cdn.min.js"></script>
+    <script src="https://unpkg.com/htmx.org@2.0.2" integrity="sha384-Y7hw+L/jvKeWIRRkqWYmf2v8LxNqABOoQSBbMenhOf5pNdSfEL/YxRHMpKeHLKd" crossorigin="anonymous"></script>
     <script>
         document.addEventListener('alpine:init', () => {
             Alpine.store('theme', {
@@ -22,6 +23,55 @@
     {% block head %}{% endblock %}
 </head>
 <body class="min-h-screen bg-gray-50 dark:bg-gray-900 text-gray-900 dark:text-gray-100 antialiased">
+
+    {% if csrf_token is defined and csrf_token %}
+    <!-- Top nav — only rendered for authenticated pages that pass csrf_token -->
+    <nav class="border-b border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900/80 backdrop-blur-sm sticky top-0 z-10">
+        <div class="mx-auto max-w-6xl px-8 flex items-center justify-between h-14">
+            <div class="flex items-center gap-6">
+                <a href="/" class="text-sm font-semibold text-gray-900 dark:text-gray-100 tracking-tight hover:text-blue-600 dark:hover:text-blue-400">Web Scraper</a>
+                <div class="hidden sm:flex items-center gap-1">
+                    <a
+                        href="/"
+                        class="rounded-md px-3 py-1.5 text-sm font-medium {% if request.url.path == '/' %}text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-900/20{% else %}text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 hover:text-gray-900 dark:hover:text-gray-100{% endif %}"
+                    >Dashboard</a>
+                    <a
+                        href="/criteria"
+                        class="rounded-md px-3 py-1.5 text-sm font-medium {% if request.url.path.startswith('/criteria') %}text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-900/20{% else %}text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 hover:text-gray-900 dark:hover:text-gray-100{% endif %}"
+                    >Criteria</a>
+                </div>
+            </div>
+            <div class="flex items-center gap-3">
+                <button
+                    x-data
+                    @click="$store.theme.toggle()"
+                    type="button"
+                    aria-label="Toggle light/dark mode"
+                    class="rounded-md p-1.5 text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                >
+                    <svg x-show="!$store.theme.dark" xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z" />
+                    </svg>
+                    <svg x-show="$store.theme.dark" xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z" />
+                    </svg>
+                </button>
+                <form method="post" action="/auth/logout">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                    <button
+                        type="submit"
+                        class="text-sm text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 focus:outline-none focus:underline"
+                    >
+                        Sign out
+                    </button>
+                </form>
+            </div>
+        </div>
+    </nav>
+    {% else %}
+    <!-- Unauthenticated page — no nav -->
+    {% endif %}
+
     {% block content %}{% endblock %}
 </body>
 </html>

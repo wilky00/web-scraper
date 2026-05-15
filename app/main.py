@@ -14,11 +14,13 @@ from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncEngine, create_async_engine
 
 from app.api.auth import router as api_auth_router
+from app.api.criteria import router as api_criteria_router
 from app.auth.permissions import NotAuthenticatedException
 from app.auth.seed import seed_operator
 from app.config.loader import ConfigLoadError, load_all_configs
 from app.settings import Settings
 from app.web.auth import router as web_auth_router
+from app.web.criteria import router as web_criteria_router
 from app.web.dashboard import router as web_dashboard_router
 
 logger = structlog.get_logger()
@@ -78,7 +80,9 @@ async def not_authenticated_handler(
 
 app.include_router(web_auth_router)
 app.include_router(web_dashboard_router)
+app.include_router(web_criteria_router)
 app.include_router(api_auth_router)
+app.include_router(api_criteria_router)
 
 
 @app.get("/health", include_in_schema=False)

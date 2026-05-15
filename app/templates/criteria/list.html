@@ -1,0 +1,171 @@
+{% extends "base.html" %}
+{% block title %}Criteria — Web Scraper{% endblock %}
+{% block content %}
+<div
+    class="min-h-screen p-8"
+    x-data="{
+        items: {{ groups | tojson }},
+        sortBy: 'display_name',
+        sortDir: 'asc',
+        get sorted() {
+            return [...this.items].sort((a, b) => {
+                let av = a[this.sortBy] ?? '';
+                let bv = b[this.sortBy] ?? '';
+                if (typeof av === 'string') av = av.toLowerCase();
+                if (typeof bv === 'string') bv = bv.toLowerCase();
+                if (av < bv) return this.sortDir === 'asc' ? -1 : 1;
+                if (av > bv) return this.sortDir === 'asc' ? 1 : -1;
+                return 0;
+            });
+        },
+        sort(col) {
+            if (this.sortBy === col) {
+                this.sortDir = this.sortDir === 'asc' ? 'desc' : 'asc';
+            } else {
+                this.sortBy = col;
+                this.sortDir = 'asc';
+            }
+        },
+        sortIcon(col) {
+            if (this.sortBy !== col) return '↕';
+            return this.sortDir === 'asc' ? '↑' : '↓';
+        }
+    }"
+>
+    <div class="mx-auto max-w-6xl">
+        <div class="mb-8 flex items-center justify-between">
+            <div>
+                <h1 class="text-2xl font-semibold tracking-tight text-gray-900 dark:text-gray-100">Criteria</h1>
+                <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">Scraping and scoring criteria templates. Each save creates an immutable version.</p>
+            </div>
+            <a
+                href="/criteria/new"
+                class="inline-flex items-center gap-2 rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 dark:focus:ring-offset-gray-900"
+            >
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
+                </svg>
+                New Criteria
+            </a>
+        </div>
+
+        <!-- Empty state -->
+        <template x-if="items.length === 0">
+            <div class="rounded-lg border border-dashed border-gray-300 dark:border-gray-700 p-12 text-center">
+                <svg xmlns="http://www.w3.org/2000/svg" class="mx-auto h-10 w-10 text-gray-400 dark:text-gray-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                </svg>
+                <p class="mt-3 text-sm font-medium text-gray-900 dark:text-gray-100">No criteria yet</p>
+                <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">Create your first criteria template to start configuring scrape jobs.</p>
+                <a
+                    href="/criteria/new"
+                    class="mt-4 inline-flex items-center gap-1.5 text-sm font-medium text-blue-600 dark:text-blue-400 hover:underline"
+                >
+                    New Criteria →
+                </a>
+            </div>
+        </template>
+
+        <!-- Table -->
+        <template x-if="items.length > 0">
+            <div class="overflow-hidden rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 shadow-sm">
+                <table class="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
+                    <thead class="bg-gray-50 dark:bg-gray-900/50">
+                        <tr>
+                            <th scope="col" class="px-6 py-3 text-left">
+                                <button
+                                    @click="sort('display_name')"
+                                    class="group inline-flex items-center gap-1 text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200"
+                                >
+                                    Name
+                                    <span class="text-gray-400 dark:text-gray-600 group-hover:text-gray-500" x-text="sortIcon('display_name')"></span>
+                                </button>
+                            </th>
+                            <th scope="col" class="px-6 py-3 text-left">
+                                <button
+                                    @click="sort('is_active')"
+                                    class="group inline-flex items-center gap-1 text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200"
+                                >
+                                    Status
+                                    <span class="text-gray-400 dark:text-gray-600 group-hover:text-gray-500" x-text="sortIcon('is_active')"></span>
+                                </button>
+                            </th>
+                            <th scope="col" class="px-6 py-3 text-left">
+                                <button
+                                    @click="sort('version_count')"
+                                    class="group inline-flex items-center gap-1 text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200"
+                                >
+                                    Versions
+                                    <span class="text-gray-400 dark:text-gray-600 group-hover:text-gray-500" x-text="sortIcon('version_count')"></span>
+                                </button>
+                            </th>
+                            <th scope="col" class="px-6 py-3 text-left">
+                                <button
+                                    @click="sort('created_at')"
+                                    class="group inline-flex items-center gap-1 text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200"
+                                >
+                                    Created
+                                    <span class="text-gray-400 dark:text-gray-600 group-hover:text-gray-500" x-text="sortIcon('created_at')"></span>
+                                </button>
+                            </th>
+                            <th scope="col" class="px-6 py-3 text-right">
+                                <span class="text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">Actions</span>
+                            </th>
+                        </tr>
+                    </thead>
+                    <tbody class="divide-y divide-gray-100 dark:divide-gray-700/50">
+                        <template x-for="group in sorted" :key="group.id">
+                            <tr class="hover:bg-gray-50 dark:hover:bg-gray-700/30 transition-colors">
+                                <td class="px-6 py-4">
+                                    <div>
+                                        <a
+                                            :href="'/criteria/' + group.id"
+                                            class="text-sm font-medium text-blue-600 dark:text-blue-400 hover:underline"
+                                            x-text="group.display_name"
+                                        ></a>
+                                        <p class="mt-0.5 text-xs text-gray-500 dark:text-gray-400 font-mono" x-text="group.name"></p>
+                                    </div>
+                                    <template x-if="group.tags && group.tags.length > 0">
+                                        <div class="mt-1 flex flex-wrap gap-1">
+                                            <template x-for="tag in group.tags" :key="tag">
+                                                <span
+                                                    class="inline-flex items-center rounded px-1.5 py-0.5 text-xs font-medium bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300"
+                                                    x-text="tag"
+                                                ></span>
+                                            </template>
+                                        </div>
+                                    </template>
+                                </td>
+                                <td class="px-6 py-4">
+                                    <template x-if="group.is_active">
+                                        <span class="inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-300">
+                                            Active
+                                        </span>
+                                    </template>
+                                    <template x-if="!group.is_active">
+                                        <span class="inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400">
+                                            Inactive
+                                        </span>
+                                    </template>
+                                </td>
+                                <td class="px-6 py-4 text-sm text-gray-700 dark:text-gray-300" x-text="group.version_count"></td>
+                                <td class="px-6 py-4 text-sm text-gray-500 dark:text-gray-400">
+                                    <span x-text="group.created_at ? new Date(group.created_at).toLocaleDateString() : '—'"></span>
+                                </td>
+                                <td class="px-6 py-4 text-right">
+                                    <a
+                                        :href="'/criteria/' + group.id"
+                                        class="text-sm font-medium text-gray-600 dark:text-gray-400 hover:text-blue-600 dark:hover:text-blue-400"
+                                    >
+                                        Edit
+                                    </a>
+                                </td>
+                            </tr>
+                        </template>
+                    </tbody>
+                </table>
+            </div>
+        </template>
+    </div>
+</div>
+{% endblock %}

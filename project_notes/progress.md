@@ -65,3 +65,23 @@
 - [x] 16 API tests: login/logout flows, unauthenticated redirect, rate limit, CSRF validation
   - NOTE: Starlette 1.0 changed TemplateResponse — `request` is first positional arg, not in context dict
   - NOTE: ruff B008 per-file ignore added for app/web/*.py + app/api/*.py (FastAPI Depends pattern)
+
+## Phase 2 — Criteria Management
+
+### Sprint 2.1 — Criteria YAML Schema — COMPLETE (done in Sprint 1.1)
+- [x] Pydantic v2 schema covering all fields from §8 of requirements — done in Sprint 1.1
+- [x] All 12 operators validated as StrEnum — done in Sprint 1.1 (plan said 11; requirements list 12)
+- [x] All 5 metric namespaces validated — done in Sprint 1.1
+- [x] Unit tests with valid and invalid fixtures — done in Sprint 1.1 (31 tests)
+
+### Sprint 2.2 — Criteria UI + Versioning — COMPLETE (verified green 2026-05-15, 148/148 tests, ruff+mypy clean)
+- [x] Criteria list page (`GET /criteria`) — sortable table with status badges, Alpine.js client-side sort
+- [x] Criteria editor (`GET /criteria/new`, `GET /criteria/{group_id}`) — YAML textarea, version history sidebar
+- [x] Inline validation (`POST /api/criteria/validate`) — HTMX partial returning error list or success badge
+- [x] Create new criteria (`POST /api/criteria`) — validates YAML, creates CriteriaGroup + CriteriaVersion v1
+- [x] Save new version (`POST /api/criteria/{group_id}/versions`) — immutable, increments version number
+- [x] Audit log entry on every save (action: `criteria_save`)
+- [x] Nav bar in base.html with HTMX — Dashboard + Criteria links, dark mode toggle, sign-out
+- [x] 13 API tests in `tests/api/test_criteria_api.py` covering validate, create, version save, list, editor
+  - NOTE: Used `app.dependency_overrides[require_operator]` for clean test isolation (FastAPI DI pattern)
+  - NOTE: Sprint 2.1 (Criteria YAML Schema) was completed early in Sprint 1.1; 2.2 was the first new work
