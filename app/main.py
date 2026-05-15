@@ -9,12 +9,17 @@ from typing import Any
 import redis.asyncio as aioredis
 import structlog
 from fastapi import FastAPI, Request
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, RedirectResponse
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncEngine, create_async_engine
 
+from app.api.auth import router as api_auth_router
+from app.auth.permissions import NotAuthenticatedException
+from app.auth.seed import seed_operator
 from app.config.loader import ConfigLoadError, load_all_configs
 from app.settings import Settings
+from app.web.auth import router as web_auth_router
+from app.web.dashboard import router as web_dashboard_router
 
 logger = structlog.get_logger()
 
@@ -24,6 +29,7 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     # Settings are loaded lazily here so importing app.main never fails
     # due to missing env vars (important for test collection without a .env file).
     settings = Settings()
+    app.state.settings = settings
     logger.info("startup.begin", environment=settings.environment)
 
     try:
@@ -41,6 +47,10 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     )
     app.state.redis = aioredis.from_url(settings.redis_url, decode_responses=True)
 
+    await seed_operator(
+        app.state.engine, settings.seed_operator_email, settings.seed_operator_password
+    )
+
     logger.info("startup.complete")
     yield
 
@@ -54,10 +64,21 @@ app = FastAPI(
     title="Web Scraper",
     version="0.1.0",
     lifespan=lifespan,
-    # Disable docs in production via config (Sprint 1.1)
     docs_url="/docs",
     redoc_url=None,
 )
+
+
+@app.exception_handler(NotAuthenticatedException)
+async def not_authenticated_handler(
+    request: Request, exc: NotAuthenticatedException
+) -> RedirectResponse:
+    return RedirectResponse(url="/login", status_code=303)
+
+
+app.include_router(web_auth_router)
+app.include_router(web_dashboard_router)
+app.include_router(api_auth_router)
 
 
 @app.get("/health", include_in_schema=False)

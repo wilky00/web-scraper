@@ -49,3 +49,19 @@
 - [x] 31 unit tests for criteria schema (test_criteria_schema.py — all 12 operators, all 5 namespaces, error paths)
 - [x] Fixture YAML files: tests/fixtures/criteria/valid_minimal.yml, valid_full.yml
   - NOTE: plan said 11 operators; requirements §8 lists 12 — implemented all 12 from requirements
+
+### Sprint 1.2 — Local Auth — COMPLETE (verified green 2026-05-15, 135/135 tests, ruff+mypy clean)
+- [x] `users` table seeded with one operator on first boot (email + password from `.env`)
+- [x] bcrypt password hashing via bcrypt library directly (passlib+bcrypt4.x incompatible on Python 3.14)
+- [x] `POST /auth/login` → HTTP-only, same-site session cookie (itsdangerous signed, Redis-backed)
+- [x] `POST /auth/logout` → deletes session from Redis, clears cookie
+- [x] `app/auth/permissions.py` — central `require_operator()` FastAPI dependency
+- [x] Rate-limit login: 10 attempts / 60s per IP (Redis INCR/EXPIRE)
+- [x] CSRF on login form (double-submit signed cookie) + session CSRF on post-auth forms
+- [x] Session ID generated fresh on login (no fixation)
+- [x] Login page (`/login`) — Jinja2, Tailwind Play CDN, Light/Dark mode (Alpine.js + localStorage)
+- [x] Dashboard stub (`/`) — auth-protected, shows username + sign-out button
+- [x] 19 unit tests: hashing, session signing, CSRF, rate limiter
+- [x] 16 API tests: login/logout flows, unauthenticated redirect, rate limit, CSRF validation
+  - NOTE: Starlette 1.0 changed TemplateResponse — `request` is first positional arg, not in context dict
+  - NOTE: ruff B008 per-file ignore added for app/web/*.py + app/api/*.py (FastAPI Depends pattern)
