@@ -251,14 +251,14 @@ class TestConnectorRegistry:
 
     def test_unknown_connector_type_not_registered(self) -> None:
         config = {
-            "google_places": {
+            "brave_search": {
                 "enabled": True,
-                "connector_type": "google_places",
+                "connector_type": "brave_search",
             }
         }
         registry = ConnectorRegistry(config)
-        # google_places not yet implemented in Phase 3.1
-        assert "google_places" not in registry.available()
+        # brave_search is not implemented (optional per requirements §3)
+        assert "brave_search" not in registry.available()
 
     def test_empty_config_empty_registry(self) -> None:
         registry = ConnectorRegistry({})

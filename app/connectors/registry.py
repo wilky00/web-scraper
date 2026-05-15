@@ -9,6 +9,7 @@ import structlog
 
 from app.connectors.base import ConnectorBase
 from app.connectors.fixture import FixtureConnector
+from app.connectors.google_places import GooglePlacesConnector
 
 logger = structlog.get_logger()
 
@@ -53,8 +54,14 @@ class ConnectorRegistry:
                     connector=name,
                     type=connector_type,
                 )
+            elif connector_type == "google_places":
+                self._instances[name] = GooglePlacesConnector(cfg)
+                logger.info(
+                    "connector_registry.registered",
+                    connector=name,
+                    type=connector_type,
+                )
             else:
-                # Phase 3.2+ will add google_places and others here.
                 logger.info(
                     "connector_registry.unknown_type",
                     connector=name,

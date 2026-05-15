@@ -96,3 +96,12 @@
 - [x] `tests/unit/test_connectors.py` — 26 unit tests for fixture connector and registry
   - NOTE: `ConnectorResult` is a Pydantic DTO (not the ORM model) — `job_id` is added by the job runner in Phase 6
   - NOTE: `google_places` connector type logged but not registered until Sprint 3.2
+
+### Sprint 3.2 — Google Places Connector — COMPLETE (verified green 2026-05-15, 172/172 tests, ruff+mypy clean)
+- [x] `app/connectors/google_places.py` — `GooglePlacesConnectorConfig` + `GooglePlacesConnector`
+- [x] Places API v1 Text Search with pagination (`nextPageToken`), per-page rate limiting, tenacity retry
+- [x] API key read from `GOOGLE_PLACES_API_KEY` env var at discover-time; never stored or logged
+- [x] `ConnectorRegistry` updated to register `google_places` connector type
+- [x] `tests/unit/test_google_places.py` — 23 tests: config, discover, pagination, retry, registry
+  - NOTE: `http_client` param injected for testing; live connector creates+closes its own `httpx.AsyncClient`
+  - NOTE: Sprint 3.1 `test_unknown_connector_type_not_registered` updated to use `brave_search` now that `google_places` is implemented
