@@ -1,0 +1,41 @@
+# Production overrides for saltrun-production.
+# Usage: docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d
+#
+# Key differences from local:
+#   - No MinIO (use commercial S3 or configure separately)
+#   - App port NOT published (Caddy with ufw-docker handles ingress)
+#   - Stricter restart policies
+#   - Structured JSON logging
+
+services:
+  app:
+    ports: []
+    restart: always
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "50m"
+        max-file: "5"
+
+  worker:
+    restart: always
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "50m"
+        max-file: "5"
+
+  db:
+    restart: always
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "50m"
+        max-file: "5"
+
+  redis:
+    restart: always
+
+  minio:
+    profiles:
+      - disabled

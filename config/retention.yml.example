@@ -1,0 +1,24 @@
+# Data retention policies.
+# Values are in days. Set to 0 to keep indefinitely.
+
+retention_days:
+  # Job event log entries
+  job_events: 90
+
+  # Raw API responses from connectors (stored as JSON)
+  raw_responses: 30
+
+  # Raw HTML from crawled pages (stored in S3/MinIO)
+  raw_html: 7
+
+  # Playwright screenshots (stored in S3/MinIO)
+  screenshots: 7
+
+  # Other crawl artifacts
+  artifacts: 30
+
+  # Exported CSV/XLSX files (stored in S3/MinIO)
+  exports: 90
+
+  # Audit log entries — keep long for compliance
+  audit_log: 365

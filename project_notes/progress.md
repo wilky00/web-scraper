@@ -1,0 +1,34 @@
+# Progress Log
+
+## Phase 0 — Project Scaffold
+
+### Sprint 0.1 — Repo & Docker Foundation
+- [x] `pyproject.toml` with all pinned dependencies (uv, ruff, pytest, FastAPI, SQLAlchemy 2.0, Alembic, Pydantic v2, structlog, passlib[bcrypt], redis, rq, httpx, playwright, openpyxl, boto3, python-multipart, jinja2, itsdangerous, tenacity, bleach, authlib)
+- [x] `Dockerfile` (Python 3.12-slim, uv install, non-root user)
+- [x] `Dockerfile.worker` (same base + Playwright browser install)
+- [x] `docker-compose.yml` (db: postgres:16, redis: redis:7, app: port 8000, worker — all with healthchecks, named volumes, restart: unless-stopped)
+- [x] `docker-compose.staging.yml` (staging overrides — no local MinIO, uses existing)
+- [x] `docker-compose.prod.yml` (prod overrides — stricter, no exposed ports beyond Caddy)
+- [x] `.env.example` documenting all required secrets
+- [x] `config/app.yml.example`, `connectors.yml.example`, `crawl.yml.example`, `retention.yml.example`, `ai/ai_base.yaml.example`
+- [x] Minimal FastAPI app (`app/main.py`) with `GET /health` → `{"status": "ok", "db": "ok", "redis": "ok"}`
+- [x] `CLAUDE.md` in project root with project-specific instructions
+- [x] GitHub Actions CI workflow: ruff, mypy, pytest, pip-audit
+- [x] 4/4 unit tests passing, ruff clean, mypy clean
+- NOTE: `docker compose up` end-to-end test pending (requires Docker Desktop running)
+
+### Sprint 0.2 — Core Data Model — COMPLETE (40/40 unit tests green, ruff+mypy clean)
+- [x] All 12 SQLAlchemy 2.0 models (type-annotated, `dict[str, Any]` on JSONB columns)
+  - `users`, `criteria_groups`, `criteria_versions`, `connectors`, `crawl_jobs`,
+    `crawl_job_events`, `raw_search_results`, `crawl_pages`, `business_records`,
+    `record_sources`, `record_audit_log`, `exports`
+  - NOTE: `metadata` renamed to `event_data` (CrawlJobEvent) and `extra_fields` (BusinessRecord) — avoids DeclarativeBase collision
+- [x] Alembic setup: `alembic.ini`, `migrations/env.py`, `migrations/script.py.mako`
+- [x] Initial migration `def32db42b5c_initial_schema.py` — all 12 tables with indexes and FKs
+- [x] 36 model unit tests (structure checks, no DB required)
+- [x] Integration tests: `tests/integration/test_migrations.py` (requires DB — runs in CI)
+
+## 2026-05-15
+**Completed:** Sprint 0.2 — 12 models, Alembic initial migration, 40 unit tests green
+**In progress:** Phase 1 ready to start
+**Next:** Sprint 1.1 — YAML Config Loading

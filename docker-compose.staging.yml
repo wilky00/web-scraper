@@ -1,0 +1,37 @@
+# Staging overrides for saltrun-staging.
+# Usage: docker compose -f docker-compose.yml -f docker-compose.staging.yml up -d
+#
+# Key differences from local:
+#   - No MinIO service (uses existing MinIO on saltrun-staging)
+#   - App port not published (Caddy terminates TLS and proxies internally)
+#   - Worker uses named artifact volume on host
+
+services:
+  app:
+    ports: []
+    restart: always
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  worker:
+    restart: always
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  db:
+    restart: always
+
+  redis:
+    restart: always
+
+  # MinIO is NOT deployed here — saltrun-staging already has MinIO running.
+  # Set S3_ENDPOINT_URL=http://minio:9000 in .env pointing to the shared MinIO instance.
+  minio:
+    profiles:
+      - disabled

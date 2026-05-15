@@ -1,0 +1,15 @@
+# AI Assist endpoint configuration — non-secret options only.
+# The API key must live in .env as AI_API_KEY.
+
+# provider: openrouter | anthropic | openai | litellm
+provider: openrouter
+base_url: "https://openrouter.ai/api/v1"
+model: "anthropic/claude-3-5-sonnet"
+max_tokens: 4096
+temperature: 0.3
+
+# Skills available to the AI assistant
+skills:
+  criteria_creation: true
+  criteria_update: true
+  criteria_validation: true

@@ -1,0 +1,58 @@
+# Secrets — never commit these
+.env
+*.env.local
+*.env.staging
+*.env.production
+
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+.Python
+*.egg-info/
+dist/
+build/
+.eggs/
+*.egg
+.venv/
+venv/
+env/
+
+# uv
+.uv/
+
+# Testing
+.pytest_cache/
+.coverage
+coverage.xml
+htmlcov/
+.mypy_cache/
+.ruff_cache/
+
+# Docker
+*.log
+
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Config (examples are committed, real configs are not)
+config/app.yml
+config/connectors.yml
+config/crawl.yml
+config/retention.yml
+config/ai/ai_base.yaml
+
+# Generated exports / artifacts
+exports/
+artifacts/
+
+# Alembic won't ignore migrations — those are committed

@@ -1,0 +1,40 @@
+# Global crawl safety defaults.
+# Per-criteria overrides are defined in config/criteria/*.yml.
+
+user_agent: "WebScraper/1.0 (internal; not-indexing)"
+
+# Default limits (per-job and per-domain)
+max_pages_per_job: 500
+max_pages_per_domain: 50
+max_depth: 3
+timeout_seconds: 30
+
+# Politeness delay between requests to the same domain (milliseconds)
+delay_between_requests_ms: 1000
+
+# Paths that will never be crawled regardless of criteria config
+blocked_path_patterns:
+  - "/login"
+  - "/logout"
+  - "/account"
+  - "/admin"
+  - "/wp-admin"
+  - "/wp-login"
+  - "/checkout"
+  - "/cart"
+  - "/payment"
+  - "/privacy"
+  - "/terms"
+  - "/signup"
+  - "/register"
+  - "/unsubscribe"
+
+# Content-Type prefixes to skip (binary files)
+blocked_content_types:
+  - "application/pdf"
+  - "application/zip"
+  - "application/octet-stream"
+  - "image/"
+  - "audio/"
+  - "video/"
+  - "font/"

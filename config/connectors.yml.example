@@ -1,0 +1,29 @@
+# Connector configuration — non-secret options only.
+# API keys and credentials must live in .env (GOOGLE_PLACES_API_KEY, BRAVE_API_KEY).
+
+connectors:
+  google_places:
+    enabled: true
+    max_results: 60
+    rate_limit:
+      requests_per_minute: 30
+    retry:
+      max_attempts: 3
+      backoff_factor: 2.0
+      retry_on_status: [429, 500, 502, 503, 504]
+    options:
+      language: "en"
+      region: "us"
+
+  brave_search:
+    enabled: false
+    max_results: 20
+    rate_limit:
+      requests_per_minute: 10
+    retry:
+      max_attempts: 3
+      backoff_factor: 2.0
+
+  fixture:
+    enabled: true
+    fixture_dir: "tests/fixtures/connector_responses"

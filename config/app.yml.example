@@ -1,0 +1,24 @@
+# Application settings — non-secret runtime configuration.
+# Copy to config/app.yml and adjust for your environment.
+# Secret values must never appear here; use .env instead.
+
+app_name: "Web Scraper"
+base_url: "http://localhost:8000"
+
+# environment: local | staging | production
+environment: local
+
+# Pagination
+default_page_size: 25
+max_page_size: 100
+
+# Active roles (MVP: operator only — extend here when adding future roles)
+roles:
+  - operator
+
+# Feature flags
+features:
+  ai_assist: false
+  brave_connector: false
+  # Show OpenAPI docs UI (/docs) — disable in production
+  api_docs: true
