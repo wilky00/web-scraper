@@ -1,6 +1,39 @@
 # Known Issues
 
-## [Issue title]
-**Status:** open | in-progress | resolved
-**Description:** 
-**Workaround:** 
+## httpx per-request cookies DeprecationWarning in API tests
+**Status:** open
+**Description:** `httpx` is deprecating per-request `cookies={}` in async requests. Affects `tests/api/test_auth_api.py` and `tests/api/test_criteria_api.py` — 12 warnings emitted on every test run. Tests still pass.
+**Workaround:** Set cookies on the `AsyncClient` instance instead of per-request. Fix in a future sprint when cleaning up test helpers.
+**Ref:** `tests/api/test_auth_api.py` (all login/logout tests), `tests/api/test_criteria_api.py` (all session cookie tests)
+
+## Tailwind Play CDN — not production-ready
+**Status:** open
+**Description:** `app/templates/base.html` loads Tailwind via the Play CDN (`https://cdn.tailwindcss.com`). This is a development-only approach — it is slower, downloads unused styles, and should not be used in staging or production.
+**Workaround:** Use as-is for local development. Switch to compiled Tailwind output before staging deploy (Phase 8 or pre-deploy hardening sprint).
+**Ref:** `app/templates/base.html:8`
+
+## docker compose up end-to-end smoke test never run
+**Status:** open
+**Description:** The full `docker compose up` + `GET /health` end-to-end test has not been run because Docker Desktop is not running in the dev environment. All unit and API tests pass, but the full container stack has not been validated.
+**Workaround:** Run manually on saltrun-staging or when Docker Desktop is available.
+
+## Accessibility scan not performed on Phase 2 UI
+**Status:** open
+**Description:** No axe-core or Lighthouse accessibility scan has been run on the criteria list (`/criteria`) or criteria editor (`/criteria/new`, `/criteria/{group_id}`) pages. These pages use semantic HTML, keyboard-accessible buttons, ARIA labels on icon buttons, and sufficient color contrast by design, but no automated scan has confirmed WCAG 2.1 AA compliance.
+**Workaround:** Run Lighthouse accessibility audit once the app is accessible in a browser (requires `docker compose up`). Target score ≥ 90. Address any critical/serious issues before staging deploy.
+
+## YAML round-trip is lossy (comments and formatting not preserved)
+**Status:** open — acceptable for MVP
+**Description:** When loading an existing criteria for editing, the stored `config_snapshot` (JSON) is re-serialized to YAML via `yaml.dump()`. Original comments, blank lines, and custom field ordering from the author's YAML are not preserved.
+**Workaround:** No workaround — this is acceptable for MVP. A future improvement would store the raw YAML text alongside the JSON snapshot in `CriteriaVersion`.
+**Ref:** `app/web/criteria.py:155-163`
+
+## `app/auth/permissions.py` low unit test coverage (48%)
+**Status:** open — intentional
+**Description:** `require_operator()` is tested indirectly via API tests using `dependency_overrides`, so the function body itself (lines 31–49) is not exercised in unit tests. Coverage is low but the logic is validated end-to-end through auth API tests.
+**Workaround:** Add a dedicated integration test that exercises `require_operator()` with a real Redis + DB connection. Defer to integration test sprint.
+
+## `app/web/dashboard.py` low unit test coverage (62%)
+**Status:** open — intentional
+**Description:** Dashboard is a stub page. Coverage will improve when Phase 7 fleshes it out.
+**Ref:** `app/web/dashboard.py`

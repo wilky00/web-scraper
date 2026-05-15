@@ -66,7 +66,7 @@
   - NOTE: Starlette 1.0 changed TemplateResponse — `request` is first positional arg, not in context dict
   - NOTE: ruff B008 per-file ignore added for app/web/*.py + app/api/*.py (FastAPI Depends pattern)
 
-## Phase 2 — Criteria Management
+## Phase 2 — Criteria Management — COMPLETE (2026-05-15)
 
 ### Sprint 2.1 — Criteria YAML Schema — COMPLETE (done in Sprint 1.1)
 - [x] Pydantic v2 schema covering all fields from §8 of requirements — done in Sprint 1.1
