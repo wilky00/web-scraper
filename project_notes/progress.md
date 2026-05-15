@@ -105,3 +105,20 @@
 - [x] `tests/unit/test_google_places.py` — 23 tests: config, discover, pagination, retry, registry
   - NOTE: `http_client` param injected for testing; live connector creates+closes its own `httpx.AsyncClient`
   - NOTE: Sprint 3.1 `test_unknown_connector_type_not_registered` updated to use `brave_search` now that `google_places` is implemented
+
+## Phase 4 — Crawl Engine
+
+### Sprint 4.1 — Crawler Foundation — COMPLETE (verified green 2026-05-15, 252/252 tests, ruff+mypy clean)
+- [x] `app/crawl/__init__.py` — package init
+- [x] `app/crawl/canonicalize.py` — URL canonicalization (normalize scheme, strip fragments, dedupe query params)
+- [x] `app/crawl/robots.py` — robots.txt fetch, parse, cache, and compliance check
+- [x] `app/crawl/filter.py` — blocked path pattern matching and binary Content-Type detection
+- [x] `app/crawl/limits.py` — per-job and per-domain page limit tracker
+- [x] `tests/fixtures/robots/allow_all.txt`, `disallow_all.txt`, `selective.txt`
+- [x] `tests/unit/test_canonicalize.py` — 25 URL canonicalization unit tests
+- [x] `tests/unit/test_robots.py` — 18 robots.txt compliance tests (mocked HTTP)
+- [x] `tests/unit/test_crawl_filter.py` — 24 blocked path and content-type filter tests
+- [x] `tests/unit/test_crawl_limits.py` — 13 per-job/per-domain limit tracker tests
+  - NOTE: URL inline fixtures used; no separate `tests/fixtures/urls/` dir needed
+  - NOTE: `RobotsCache` fails open (allows all) on 404, non-200, and network errors
+  - NOTE: Path blocking uses prefix match for bare patterns, fnmatch for glob patterns
