@@ -13,6 +13,7 @@ from fastapi.responses import JSONResponse
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncEngine, create_async_engine
 
+from app.config.loader import ConfigLoadError, load_all_configs
 from app.settings import Settings
 
 logger = structlog.get_logger()
@@ -24,6 +25,13 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     # due to missing env vars (important for test collection without a .env file).
     settings = Settings()
     logger.info("startup.begin", environment=settings.environment)
+
+    try:
+        app.state.config = load_all_configs(settings.config_dir)
+        logger.info("startup.config_loaded", config_dir=str(settings.config_dir))
+    except ConfigLoadError as exc:
+        logger.critical("startup.config_failed", error=str(exc))
+        raise SystemExit(1) from exc
 
     app.state.engine = create_async_engine(
         settings.database_url,

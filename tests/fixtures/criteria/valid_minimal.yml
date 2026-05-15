@@ -1,0 +1,9 @@
+metadata:
+  name: test-criteria
+  display_name: Test Criteria
+
+source:
+  connector: google_places
+  query_fields:
+    - field: type
+      value: bakery

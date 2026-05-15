@@ -1,0 +1,77 @@
+metadata:
+  name: bakeries-nashville
+  display_name: Bakeries near Nashville
+  description: Find bakeries within 30 miles of Nashville with online presence
+  tags: [bakery, food, nashville, tennessee]
+
+source:
+  connector: google_places
+  max_results: 60
+  query_fields:
+    - field: type
+      value: bakery
+    - field: location
+      value: "Nashville, TN"
+    - field: radius
+      value: "48000"
+
+crawl:
+  enabled: true
+  max_depth: 2
+  max_pages_per_domain: 10
+  include_url_patterns:
+    - ".*menu.*"
+    - ".*about.*"
+    - ".*contact.*"
+  exclude_url_patterns:
+    - "/order"
+    - "/cart"
+
+extraction:
+  fields:
+    - name: email
+    - name: phone
+      source_priority: [html, connector]
+    - name: address
+      source_priority: [connector, html]
+
+rules:
+  must_have:
+    - metric: extraction.email
+      operator: exists
+      label: Has email address
+    - metric: extraction.website
+      operator: exists
+      label: Has website
+  exclude:
+    - metric: source.rating
+      operator: less_than_or_equal
+      value: 2.0
+      label: Low rated
+  should_have:
+    - metric: crawl.status_code
+      operator: equals
+      value: 200
+      label: Website resolves
+
+scoring:
+  enabled: true
+  minimum_score: 30.0
+  weighted_rules:
+    - metric: extraction.phone
+      operator: exists
+      weight: 2.0
+      label: Has phone
+    - metric: extraction.address
+      operator: exists
+      weight: 1.5
+      label: Has address
+
+dedup:
+  primary_key: domain
+  secondary_keys: [email, phone]
+
+output:
+  display_fields: [name, email, phone, address, website, match_score]
+  store_fields: [name, email, phone, address, website, match_score, location_city, location_state]
+  export_fields: [name, email, phone, address, website]

@@ -2,6 +2,8 @@
 # ABOUTME: Non-secret runtime config lives in config/*.yml; this handles .env secrets.
 from __future__ import annotations
 
+from pathlib import Path
+
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -44,3 +46,6 @@ class Settings(BaseSettings):
     authentik_client_id: str = ""
     authentik_client_secret: str = ""
     authentik_base_url: str = ""
+
+    # Config directory (non-secret YAML files); override in tests via CONFIG_DIR env var
+    config_dir: Path = Path("config")

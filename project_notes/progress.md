@@ -32,3 +32,20 @@
 **Completed:** Sprint 0.2 — 12 models, Alembic initial migration, 40 unit tests green
 **In progress:** Phase 1 ready to start
 **Next:** Sprint 1.1 — YAML Config Loading
+
+## Phase 1 — Auth & Config Foundation
+
+### Sprint 1.1 — YAML Config Loading — COMPLETE (104/104 unit tests green, ruff+mypy clean)
+- [x] Pydantic v2 models for `app.yml` (AppConfig, FeaturesConfig)
+- [x] Pydantic v2 models for `connectors.yml` (ConnectorsConfig)
+- [x] Pydantic v2 models for `crawl.yml` (CrawlConfig)
+- [x] Pydantic v2 models for `retention.yml` (RetentionConfig, RetentionDays)
+- [x] YAML loader (`app/config/loader.py`) — ConfigLoadError, load_all_configs(), per-file loaders, AppConfigs dataclass
+- [x] Criteria YAML schema (`app/config/criteria.py`) — CriteriaConfig with all §8 fields, all 12 operators (StrEnum), 5 namespaces validated
+- [x] validate_criteria_yaml() — returns (CriteriaConfig | None, list[str]), never raises
+- [x] Wire loader into FastAPI lifespan — app.state.config = AppConfigs; SystemExit(1) on failure
+- [x] app/settings.py — config_dir: Path field (default Path("config"), overridable via CONFIG_DIR env var)
+- [x] 33 unit tests for config models + loaders (test_config.py)
+- [x] 31 unit tests for criteria schema (test_criteria_schema.py — all 12 operators, all 5 namespaces, error paths)
+- [x] Fixture YAML files: tests/fixtures/criteria/valid_minimal.yml, valid_full.yml
+  - NOTE: plan said 11 operators; requirements §8 lists 12 — implemented all 12 from requirements
