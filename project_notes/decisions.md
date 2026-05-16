@@ -25,6 +25,21 @@
 **Why:** `require_operator` is already tested in `test_auth_api.py`. Repeating the full auth mock stack in every criteria test couples criteria tests to auth implementation details. `dependency_overrides` is the FastAPI-idiomatic pattern for this.
 **Alternatives considered:** Mock Redis + full session cookie in every test — correct but verbose and fragile to auth changes.
 
+## RobotsCache fails open on errors — 2026-05-15
+**What:** `RobotsCache.is_allowed()` returns `True` (allow) on any error: 404, non-200 status, network timeout, parse failure.
+**Why:** Transient infrastructure issues (DNS blip, overloaded server) should not permanently block a crawl job. A legitimate site with a broken robots.txt should not be treated as fully disallowed. Fail-open is the industry standard for robots.txt handling.
+**Alternatives considered:** Fail-closed (block on error) — too aggressive; would silently skip large portions of a crawl due to transient errors.
+
+## PageFetcher.fetch() kept pure — Sprint 4.1 helpers deferred to Phase 6 — 2026-05-15
+**What:** `PageFetcher.fetch()` handles only Playwright lifecycle, timeout, inter-request delay, and error capture. It does not call `RobotsCache`, `is_path_blocked`, `is_content_type_blocked`, or `PageLimitTracker`.
+**Why:** Those helpers require per-job state (limits tracker) and async HTTP calls (robots fetch). Wiring them into the fetcher would make it stateful and harder to test. The Phase 6 job orchestrator is the correct place to compose all four modules into a coherent crawl loop.
+**Alternatives considered:** Wire helpers into fetcher — tighter coupling, harder to unit-test fetcher in isolation.
+
+## playwright added to dev extras (Python package only) — 2026-05-15
+**What:** `playwright` appears in both `dev` and `worker` extras in `pyproject.toml`. The Python package and type stubs are installed in dev; browsers (`playwright install chromium`) are only installed in `Dockerfile.worker`.
+**Why:** Unit tests need to `import playwright.async_api` to patch `async_playwright`. Without the package in dev extras, `import app.worker.fetcher` fails with `ModuleNotFoundError` in the unit test runner.
+**Alternatives considered:** Keep playwright only in worker extras and use `importlib.import_module` with a lazy import guard — more complex, obscures the dependency graph.
+
 ## HTMX for inline YAML validation — 2026-05-15
 **What:** The criteria editor uses `hx-post="/api/criteria/validate"` with `hx-trigger="input delay:700ms"` to stream validation results into a `#validation-panel` div without a full page reload.
 **Why:** HTMX replaces the need for custom JavaScript for this interaction. The server already has `validate_criteria_yaml()` — wrapping it in an HTMX endpoint is ~20 lines. The alternative (full form submit on every keystroke) would be disruptive to the editing experience.

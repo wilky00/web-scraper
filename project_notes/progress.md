@@ -135,3 +135,35 @@
   - NOTE: `playwright` added to dev extras so unit tests can import+mock it; browsers not needed for mocked tests
   - NOTE: `persist_crawl_page()` sets `raw_html_path=None` — MinIO upload deferred to Phase 8
   - NOTE: Sprint 4.1 helpers (robots, filter, limits) are not wired into `PageFetcher.fetch()` — deferred to Phase 6 job orchestrator
+
+## Phase 5 — Extraction, Scoring, Deduplication
+
+### Sprint 5.1 — Deterministic Extraction — COMPLETE (verified green 2026-05-15, 360/360 tests, ruff+mypy clean)
+- [x] `app/extraction/__init__.py` — package init, exports public symbols
+- [x] `app/extraction/models.py` — `ExtractedField` + `ExtractionResult` dataclasses
+- [x] `app/extraction/_json_ld.py` — shared JSON-LD block parser (used by name + address)
+- [x] `app/extraction/sanitize.py` — `sanitize_html(html) -> str` via bleach (pre-strips script/style to prevent text leakage)
+- [x] `app/extraction/email.py` — mailto link + regex text extraction, deduped, lowercased
+- [x] `app/extraction/phone.py` — tel link + regex text extraction, normalized to 10 digits
+- [x] `app/extraction/name.py` — JSON-LD → og:site_name → title → h1 priority chain
+- [x] `app/extraction/url.py` — og:url → canonical → base_url priority chain
+- [x] `app/extraction/address.py` — JSON-LD PostalAddress → itemprop microdata
+- [x] `app/extraction/runner.py` — `run_extraction(html, source_url, base_url) -> ExtractionResult`
+- [x] `tests/fixtures/html/extraction/` — 10 static HTML fixtures
+- [x] `tests/unit/test_extraction_sanitize.py` — 10 tests
+- [x] `tests/unit/test_extraction_email.py` — 12 tests
+- [x] `tests/unit/test_extraction_phone.py` — 10 tests
+- [x] `tests/unit/test_extraction_name.py` — 12 tests
+- [x] `tests/unit/test_extraction_url.py` — 8 tests
+- [x] `tests/unit/test_extraction_address.py` — 8 tests
+- [x] `tests/unit/test_extraction_runner.py` — 9 tests
+  - NOTE: `beautifulsoup4>=4.12.0` + `lxml>=5.0.0` added to main deps; `types-beautifulsoup4` to dev extras
+  - NOTE: `sanitize_html()` pre-decomposes script/style via BS4 before bleach — bleach `strip=True` preserves tag text content, which would leave raw JS inline
+  - NOTE: `_json_ld.py` is a private shared utility (leading underscore) used by both name.py and address.py
+  - NOTE: Phone extractor normalizes to 10-digit string (strips country code "1" if present)
+
+## Phase 4 COMPLETE — 2026-05-15
+- 298/298 tests green (291 unit + 7 Playwright integration)
+- ruff clean, mypy strict clean
+- Deferred: MinIO raw HTML upload (`raw_html_path`) → Phase 8
+- Deferred: Sprint 4.1 helpers wired into orchestrator → Phase 6

@@ -37,3 +37,18 @@
 **Status:** open — intentional
 **Description:** Dashboard is a stub page. Coverage will improve when Phase 7 fleshes it out.
 **Ref:** `app/web/dashboard.py`
+
+## `persist_crawl_page()` always sets `raw_html_path=None`
+**Status:** open — deferred to Phase 8
+**Description:** MinIO/S3 raw HTML upload is not implemented. `CrawlPage.raw_html_path` is always `None` until Phase 8 adds the upload step.
+**Ref:** `app/worker/persist.py:23`
+
+## Sprint 4.1 helpers not wired into `PageFetcher`
+**Status:** open — deferred to Phase 6
+**Description:** `RobotsCache`, `is_path_blocked`, `is_content_type_blocked`, and `PageLimitTracker` exist but are not called from `PageFetcher.fetch()`. The Phase 6 job orchestrator is the correct integration point. Until then, no robots/filter/limits enforcement happens on fetches.
+**Ref:** `app/worker/fetcher.py`, `app/crawl/`
+
+## `RobotsCache` in-memory only — not shared across jobs
+**Status:** open — acceptable for MVP
+**Description:** `RobotsCache` caches robots.txt per domain in a dict on the object instance. A new instance is created per job run, so the cache does not persist across jobs or worker restarts. Every new job re-fetches robots.txt for all domains.
+**Ref:** `app/crawl/robots.py`

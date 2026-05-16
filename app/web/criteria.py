@@ -50,15 +50,14 @@ async def criteria_list(
     csrf_token = await _get_csrf(request, session_cookie)
 
     async with AsyncSession(request.app.state.engine) as db:
-        groups_result = await db.execute(
-            select(CriteriaGroup).order_by(CriteriaGroup.display_name)
-        )
+        groups_result = await db.execute(select(CriteriaGroup).order_by(CriteriaGroup.display_name))
         groups = list(groups_result.scalars().all())
 
         # Get version counts per group
         counts_result = await db.execute(
-            select(CriteriaVersion.group_id, func.count().label("version_count"))
-            .group_by(CriteriaVersion.group_id)
+            select(CriteriaVersion.group_id, func.count().label("version_count")).group_by(
+                CriteriaVersion.group_id
+            )
         )
         version_counts = {str(row.group_id): row.version_count for row in counts_result}
 
@@ -138,9 +137,7 @@ async def criteria_editor(
     csrf_token = await _get_csrf(request, session_cookie)
 
     async with AsyncSession(request.app.state.engine) as db:
-        group_result = await db.execute(
-            select(CriteriaGroup).where(CriteriaGroup.id == group_id)
-        )
+        group_result = await db.execute(select(CriteriaGroup).where(CriteriaGroup.id == group_id))
         group = group_result.scalar_one_or_none()
 
         if group is None:

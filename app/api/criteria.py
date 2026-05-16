@@ -36,9 +36,7 @@ def _validation_html(errors: list[str]) -> str:
             '<p class="text-sm font-medium text-green-800 dark:text-green-300">'
             "Valid YAML — ready to save.</p></div>"
         )
-    items = "".join(
-        f'<li class="font-mono text-xs break-all">{err}</li>' for err in errors
-    )
+    items = "".join(f'<li class="font-mono text-xs break-all">{err}</li>' for err in errors)
     return (
         '<div class="rounded-md bg-red-50 dark:bg-red-900/20 border border-red-200'
         ' dark:border-red-800 p-4">'
@@ -211,9 +209,7 @@ async def save_criteria_version(
     settings: Settings = request.app.state.settings
 
     async with AsyncSession(request.app.state.engine) as db:
-        result = await db.execute(
-            select(CriteriaGroup).where(CriteriaGroup.id == group_id)
-        )
+        result = await db.execute(select(CriteriaGroup).where(CriteriaGroup.id == group_id))
         group = result.scalar_one_or_none()
 
     if not await _check_csrf(request, csrf_token, session_cookie):
@@ -273,9 +269,9 @@ async def save_criteria_version(
     snapshot = config.model_dump()
     async with AsyncSession(request.app.state.engine) as db3:
         count_result = await db3.execute(
-            select(func.count()).select_from(CriteriaVersion).where(
-                CriteriaVersion.group_id == group_id
-            )
+            select(func.count())
+            .select_from(CriteriaVersion)
+            .where(CriteriaVersion.group_id == group_id)
         )
         next_version = (count_result.scalar() or 0) + 1
 

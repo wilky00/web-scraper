@@ -374,9 +374,7 @@ async def test_save_version_group_not_found_returns_404(
 
 
 @pytest.mark.asyncio
-async def test_criteria_list_renders(
-    mock_user: MagicMock, mock_redis_criteria: AsyncMock
-) -> None:
+async def test_criteria_list_renders(mock_user: MagicMock, mock_redis_criteria: AsyncMock) -> None:
     _set_state(mock_redis_criteria)
     app.dependency_overrides[require_operator] = lambda: mock_user
     db_mock = _make_criteria_db_mock(groups=[])
