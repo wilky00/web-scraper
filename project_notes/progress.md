@@ -261,7 +261,12 @@ Deferred: Integration tests (require Docker DB) → CI only
   - NOTE: `_require_records_read` stored as module-level var so tests can use `dependency_overrides`
   - NOTE: HTMX POST endpoints unchanged — they use session auth; envelope only on new JSON GET endpoints
 
-## Phase 8 — Exports + Audit Log UI + Dashboard
+## Phase 8 — Exports + Audit Log UI + Dashboard — COMPLETE (2026-05-16)
+601/601 unit + API tests green | ruff clean | mypy strict clean
+Deferred: Accessibility scan for Phase 8 UI (exports, audit, dashboard, settings) → pre-deploy hardening
+Deferred: app/templates/exports/ force-added due to broad `exports/` gitignore — narrow the pattern pre-deploy
+Deferred: Token management UI (generate/revoke via browser) → deferred from Phase 7, still open
+
 
 ### Sprint 8.1 — Export + Raw HTML Upload — COMPLETE (verified green 2026-05-16, 594/594 tests, ruff+mypy clean)
 - [x] `app/services/__init__.py` — package init

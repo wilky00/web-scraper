@@ -33,15 +33,20 @@
 **Description:** `require_operator()` is tested indirectly via API tests using `dependency_overrides`, so the function body itself (lines 31–49) is not exercised in unit tests. Coverage is low but the logic is validated end-to-end through auth API tests.
 **Workaround:** Add a dedicated integration test that exercises `require_operator()` with a real Redis + DB connection. Defer to integration test sprint.
 
-## `app/web/dashboard.py` low unit test coverage (62%)
+## `app/web/dashboard.py` low unit test coverage
 **Status:** open — intentional
-**Description:** Dashboard is a stub page. Coverage will improve when Phase 7 fleshes it out.
+**Description:** Dashboard queries are exercised via the audit page and exports API tests, but the dashboard route itself has no dedicated test. Coverage is 38%. The route uses the same DB session pattern as other tested routes.
 **Ref:** `app/web/dashboard.py`
 
-## `persist_crawl_page()` always sets `raw_html_path=None`
-**Status:** open — deferred to Phase 8
-**Description:** MinIO/S3 raw HTML upload is not implemented. `CrawlPage.raw_html_path` is always `None` until Phase 8 adds the upload step.
-**Ref:** `app/worker/persist.py:23`
+## `app/web/settings_page.py` has no dedicated tests
+**Status:** open — intentional
+**Description:** `GET /settings` and `_redact()` have no test coverage (38%). The `_redact()` pure function is straightforward but untested. Add unit tests for `_redact()` and a GET /settings API test in a future hardening sprint.
+**Ref:** `app/web/settings_page.py`
+
+## `persist_crawl_page()` raw HTML upload: RESOLVED in Phase 8
+**Status:** RESOLVED in Sprint 8.1
+**Description:** `storage.upload_bytes()` is now called from `persist_crawl_page()` when `settings.s3_endpoint_url` is set. `CrawlPage.raw_html_path` is set to the S3 key when upload succeeds; `None` otherwise (graceful no-op when S3 is not configured).
+**Ref:** `app/worker/persist.py`
 
 ## Sprint 4.1 helpers not wired into `PageFetcher`
 **Status:** RESOLVED in Sprint 6.1
@@ -88,6 +93,17 @@
 **Description:** No axe-core or Lighthouse scan has been run on the records list (`/records`), detail (`/records/{id}`), inline edit form (`/records/{id}/edit` HTMX partial), or add modal pages. These pages follow the same Tailwind patterns as earlier pages but no automated scan has confirmed WCAG 2.1 AA compliance.
 **Workaround:** Run Lighthouse accessibility audit once the app is accessible in a browser. Target score ≥ 90.
 **Ref:** `app/templates/records/list.html`, `app/templates/records/detail.html`, `app/templates/records/_edit_form.html`, `app/templates/records/_add_modal.html`
+
+## Accessibility scan not performed on Phase 8 UI — Phase 8
+**Status:** open
+**Description:** No axe-core or Lighthouse scan has been run on the exports list (`/exports`), audit log (`/audit-log`), settings (`/settings`), or updated dashboard (`/`) pages. Pages follow the same accessible Tailwind patterns as earlier phases but no automated scan has been done.
+**Workaround:** Run Lighthouse accessibility audit once the app is accessible in a browser. Target score ≥ 90. Address critical/serious issues before staging deploy.
+**Ref:** `app/templates/exports/list.html`, `app/templates/audit/list.html`, `app/templates/settings.html`, `app/templates/dashboard.html`
+
+## `app/templates/exports/` force-added to git due to `.gitignore` pattern — Phase 8
+**Status:** open — minor
+**Description:** `.gitignore` contains `exports/` to exclude generated export files. This pattern also matches `app/templates/exports/`, causing the template directory to be ignored. The templates were force-added with `git add -f`. The gitignore rule should be narrowed to `/exports/` (root-anchored) or `exports/*.csv` / `exports/*.xlsx` before staging deploy.
+**Ref:** `.gitignore`, `app/templates/exports/`
 
 ## API token management UI not implemented — Phase 7
 **Status:** open — deferred

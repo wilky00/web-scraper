@@ -85,6 +85,21 @@
 **Why:** MVP has two users. A separate `api_tokens` table adds a migration, a new model, and a join on every auth check without any practical benefit at this scale. The single-token-per-user limit is acceptable — regenerating the token (which overwrites `api_key_hash`) is the revocation + reissue path.
 **Alternatives considered:** Separate `api_tokens` table — supports multiple named tokens with individual expiry and revocation. Deferred; add if a user actually needs concurrent integrations.
 
+## S3/MinIO sync boto3 client wrapped with asyncio.to_thread() — 2026-05-16
+**What:** `app/services/storage.py` exposes synchronous `upload_bytes()` and `download_bytes()` functions. Callers in async contexts (`app/api/exports.py`, `app/web/exports.py`) call these via `asyncio.to_thread()`.
+**Why:** boto3 has no async API and ships no async client. The two options are `asyncio.to_thread()` (stdlib, no new deps, idiomatic for sync-in-async) or `aioboto3` (third-party wrapper, additional dep). `to_thread()` is sufficient for the expected upload/download volumes and keeps the storage module itself simple and testable with plain synchronous mocks.
+**Alternatives considered:** `aioboto3` — adds a dependency with its own compatibility surface. `run_in_executor` with a ThreadPoolExecutor — functionally equivalent to `to_thread()` but more verbose.
+
+## Export always async via RQ; no synchronous path — 2026-05-16
+**What:** `POST /api/exports` always enqueues an RQ task. There is no synchronous "generate now and return bytes" path even for small record sets.
+**Why:** Consistency. The API returns immediately with 201 + `HX-Redirect` to `/exports`. The client polls `GET /api/exports/{id}` via HTMX until ready. A synchronous path would require a different API shape and different UI handling, and would time out for large exports anyway.
+**Alternatives considered:** Synchronous generation for small record sets (e.g., < 1000 rows) — adds branching logic, different response shapes, and unpredictable latency on the request thread.
+
+## _redact() applies keyword match on dict keys, not a fixed allowlist — 2026-05-16
+**What:** `app/web/settings_page.py::_redact()` hides any dict value whose key name (lowercased) contains one of: `key`, `secret`, `password`, `token`, `credential`. It recurses into nested dicts and lists.
+**Why:** The config YAML structure is not known at compile time — it can contain arbitrary nesting from user-authored `config/*.yml` files. A fixed allowlist would need maintenance as config schemas evolve. A keyword-based approach catches secrets-by-convention without enumerating every possible field name.
+**Alternatives considered:** Explicit blocklist of known secret field names — more precise but requires updates with every schema change. Run `Settings` model redaction directly — would require re-parsing env vars into a displayable form and risks leaking fields that are secret by name but not in the Settings model.
+
 ## Response envelope only on new JSON GET endpoints — 2026-05-16
 **What:** The `{data, pagination, errors}` envelope is applied only to `GET /api/records` and `GET /api/records/{id}`. The existing HTMX POST endpoints (`/api/records`, `/api/records/{id}`, `/api/jobs`, etc.) return bare JSON or `HX-Redirect` headers — no envelope.
 **Why:** The HTMX POST endpoints are consumed by the browser HTMX library, not by machine API clients. The browser reads `HX-Redirect` headers, not JSON bodies. Wrapping them in an envelope would be unused noise and would break HTMX's behavior. The envelope is meaningful only for endpoints designed for programmatic consumption.
