@@ -85,9 +85,7 @@ async def test_connector(db_session: AsyncSession) -> Connector:
 
 
 @pytest.fixture
-async def test_criteria_version(
-    db_session: AsyncSession, test_user: User
-) -> CriteriaVersion:
+async def test_criteria_version(db_session: AsyncSession, test_user: User) -> CriteriaVersion:
     cfg, errors = validate_criteria_yaml(_CRITERIA_YAML)
     assert not errors and cfg is not None
 

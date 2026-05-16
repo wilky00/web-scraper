@@ -147,16 +147,25 @@ def test_inactive_records_skipped() -> None:
 
 def test_no_duplicates_returns_empty() -> None:
     a = _make_record(
-        "1", name="Sunrise Landscaping", website="https://sunrise.com",
-        phone="615-100-0001", email="a@a.com",
+        "1",
+        name="Sunrise Landscaping",
+        website="https://sunrise.com",
+        phone="615-100-0001",
+        email="a@a.com",
     )
     b = _make_record(
-        "2", name="Blue Ridge Electric", website="https://blueridge.com",
-        phone="615-100-0002", email="b@b.com",
+        "2",
+        name="Blue Ridge Electric",
+        website="https://blueridge.com",
+        phone="615-100-0002",
+        email="b@b.com",
     )
     c = _make_record(
-        "3", name="Coastal HVAC", website="https://coastal.com",
-        phone="615-100-0003", email="c@c.com",
+        "3",
+        name="Coastal HVAC",
+        website="https://coastal.com",
+        phone="615-100-0003",
+        email="c@c.com",
     )
     groups = engine.find_duplicates([a, b, c])
     assert groups == []
@@ -194,8 +203,11 @@ def test_merge_loser_canonical_set_to_winner_id() -> None:
 
 def test_merge_sources_transferred_to_winner() -> None:
     src = SourceData(
-        record_id="l1", field="phone", source_url=None,
-        source_type="crawl", raw_value="555-1234",
+        record_id="l1",
+        field="phone",
+        source_url=None,
+        source_type="crawl",
+        raw_value="555-1234",
     )
     winner = _make_record("w1")
     loser = _make_record("l1", sources=[src])
@@ -206,8 +218,11 @@ def test_merge_sources_transferred_to_winner() -> None:
 
 def test_merge_loser_sources_cleared() -> None:
     src = SourceData(
-        record_id="l1", field="email", source_url=None,
-        source_type="crawl", raw_value="x@x.com",
+        record_id="l1",
+        field="email",
+        source_url=None,
+        source_type="crawl",
+        raw_value="x@x.com",
     )
     winner = _make_record("w1")
     loser = _make_record("l1", sources=[src])

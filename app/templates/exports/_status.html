@@ -1,0 +1,29 @@
+{% if export.status in ["pending", "processing"] %}
+<td class="px-4 py-3"
+    hx-get="/exports/{{ export.id }}/status"
+    hx-trigger="every 2s"
+    hx-swap="outerHTML"
+    hx-target="this"
+>
+    <span class="inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium bg-yellow-100 dark:bg-yellow-900/30 text-yellow-800 dark:text-yellow-300">{{ export.status }}</span>
+</td>
+{% elif export.status == "ready" %}
+<td class="px-4 py-3">
+    <a
+        href="/exports/{{ export.id }}/download"
+        class="inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300 hover:underline"
+        aria-label="Download export file"
+    >
+        Download
+    </a>
+</td>
+{% elif export.status == "failed" %}
+<td class="px-4 py-3">
+    <span class="inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium bg-red-100 dark:bg-red-900/30 text-red-800 dark:text-red-300">failed</span>
+    {% if export.error %}
+    <div class="mt-1 text-xs text-gray-400 dark:text-gray-500 max-w-xs truncate" title="{{ export.error }}">{{ export.error[:80] }}</div>
+    {% endif %}
+</td>
+{% else %}
+<td class="px-4 py-3 text-sm text-gray-500 dark:text-gray-400">{{ export.status }}</td>
+{% endif %}

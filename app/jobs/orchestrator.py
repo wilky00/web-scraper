@@ -25,6 +25,7 @@ from app.models.job import CrawlJob
 from app.models.raw_result import RawSearchResult
 from app.models.record import BusinessRecord, RecordSource
 from app.scoring.engine import ScoringEngine
+from app.settings import Settings
 from app.worker.fetcher import FetchResult, PageFetcher
 from app.worker.persist import log_crawl_event, persist_crawl_page
 
@@ -39,6 +40,7 @@ async def run_job(
     criteria: CriteriaConfig,
     crawl_config: CrawlConfig | None = None,
     fetcher: PageFetcher | None = None,
+    settings: Settings | None = None,
 ) -> None:
     """Run a complete crawl job end-to-end.
 
@@ -98,6 +100,7 @@ async def run_job(
                     limit_tracker=limit_tracker,
                     robots_cache=robots_cache,
                     crawl_config=crawl_config,
+                    settings=settings,
                     log=log,
                 )
                 if fetch_result and fetch_result.success:
@@ -180,6 +183,7 @@ async def _try_crawl(
     limit_tracker: PageLimitTracker | None,
     robots_cache: RobotsCache | None,
     crawl_config: CrawlConfig | None,
+    settings: Settings | None = None,
     log: Any,
 ) -> FetchResult | None:
     """Attempt to crawl a URL. Returns FetchResult or None if skipped/failed."""
@@ -212,7 +216,7 @@ async def _try_crawl(
         await log_crawl_event(session, job_id, "crawl_skipped", f"Blocked content type: {url}")
         return fetch_result
 
-    await persist_crawl_page(session, job_id, fetch_result)
+    await persist_crawl_page(session, job_id, fetch_result, settings)
     if limit_tracker:
         limit_tracker.record_crawled(url)
 

@@ -55,6 +55,41 @@
 **Why:** No new dependency needed. Handles the most common real-world cases: punctuation differences ("Joe's Bakery" vs "Joes Bakery"), legal suffix noise ("LLC" vs "Inc"), casing ("GREEN VALLEY" vs "Green Valley"). Edit-distance fuzzy matching produces too many false positives on short names (e.g. "Ace" matches "Axe") without careful threshold tuning.
 **Alternatives considered:** `rapidfuzz` / `thefuzz` — more powerful, but adds a dependency and requires a similarity threshold that would need empirical calibration. Deferred to a future improvement if MVP false-negative rate is unacceptable.
 
+## DB poll per record for pause/cancel detection — 2026-05-16
+**What:** The job orchestrator calls `session.refresh(job)` after each per-record commit to detect externally-set `paused` or `cancel_requested` status. With `expire_on_commit=False` on the session, in-memory job status does not refresh after commit — an explicit reload is required.
+**Why:** Simplest coordination mechanism for a single-worker system. Avoids a Redis pub/sub dependency, keeps the orchestrator free of additional infrastructure, and is accurate enough for the expected throughput (seconds per record, not milliseconds). A DB round-trip per record is negligible at this volume.
+**Alternatives considered:** Redis flag (faster, no DB hit, but adds Redis coupling to orchestrator) — rejected; overkill for MVP. In-memory asyncio.Event (can't cross process boundaries, no persistence) — rejected.
+
+## Pause sets status directly; cancel uses cancel_requested intermediate — 2026-05-16
+**What:** `POST /pause` sets `job.status = "paused"` immediately. The worker detects "paused" on the next `session.refresh()` and exits without changing it. `POST /cancel` sets `job.status = "cancel_requested"`. The worker detects this and transitions to `"cancelled"` itself.
+**Why:** Pause is idempotent — if the worker has already finished by the time the API request arrives, the status is already terminal and the endpoint rejects the request with 409. No intermediate "pause_requested" state is needed. Cancel uses an intermediate state because the API cannot know when the worker will actually stop — "cancelled" as the final state should only be set by the worker that confirms the stop.
+**Alternatives considered:** Single `paused` state for both API and worker — simpler, but doesn't distinguish "user requested pause" from "worker confirmed stop" for cancel.
+
+## Resume re-queues from scratch (no checkpoint) — 2026-05-16
+**What:** `POST /resume` sets status to `queued` and re-enqueues via RQ. The job re-runs the full connector from the beginning. Records stored before the pause are preserved in the DB. Dedup at the end of the resumed run handles overlap.
+**Why:** `connector.discover()` is an async generator with no cursor or offset API. Mid-stream checkpointing would require either (a) a connector-specific persistence layer or (b) replaying all connector results and skipping already-processed ones. Both are out of scope for MVP.
+**Alternatives considered:** Connector cursor stored in `CrawlJob.config_snapshot` — possible future improvement if high-latency connectors (e.g. Google Places with many pages) make full re-runs costly.
+
+## HTMX outerHTML swap for polling stop — 2026-05-16
+**What:** The events polling container uses `hx-swap="outerHTML"`. When the job is active, the server response includes `hx-trigger="every 2s"` on the container div. When the job is terminal, the server omits `hx-trigger`. Because outerHTML replaces the element itself, the new element has no polling attribute — HTMX stops automatically.
+**Why:** No JavaScript, no custom events, no `HX-Stop-Polling` header hack. The pattern is idiomatic HTMX 2.x and self-documenting: the presence or absence of `hx-trigger` on the response element controls whether polling continues.
+**Alternatives considered:** JS event listener + `HX-Trigger` response header — more complex, requires inline JS. Poll forever (always include `hx-trigger`) — simple but wastes requests after job completes.
+
+## HTMX inline edit via POST (not PATCH) for records — 2026-05-16
+**What:** `POST /api/records/{id}` handles record updates (inline edit form submit). REST conventions would use PATCH or PUT, but HTMX forms only support GET and POST.
+**Why:** HTMX 2.x does not support `hx-method="PATCH"` natively without a custom extension. Using POST keeps the HTMX template simple and consistent with the other HTMX form endpoints in the project. No external API clients were consuming this endpoint at the time it was designed.
+**Alternatives considered:** HTMX `hx-patch` via the `htmx-method-override` extension — adds a dependency and a client-side JS include for marginal benefit at MVP scale.
+
+## API token storage on users table (one token per user) — 2026-05-16
+**What:** API tokens are stored as `api_key_hash` (HMAC-SHA256 of the plaintext token, keyed with `api_token_secret`) and `api_key_scopes` (JSONB array) directly on the `users` table. One token per user.
+**Why:** MVP has two users. A separate `api_tokens` table adds a migration, a new model, and a join on every auth check without any practical benefit at this scale. The single-token-per-user limit is acceptable — regenerating the token (which overwrites `api_key_hash`) is the revocation + reissue path.
+**Alternatives considered:** Separate `api_tokens` table — supports multiple named tokens with individual expiry and revocation. Deferred; add if a user actually needs concurrent integrations.
+
+## Response envelope only on new JSON GET endpoints — 2026-05-16
+**What:** The `{data, pagination, errors}` envelope is applied only to `GET /api/records` and `GET /api/records/{id}`. The existing HTMX POST endpoints (`/api/records`, `/api/records/{id}`, `/api/jobs`, etc.) return bare JSON or `HX-Redirect` headers — no envelope.
+**Why:** The HTMX POST endpoints are consumed by the browser HTMX library, not by machine API clients. The browser reads `HX-Redirect` headers, not JSON bodies. Wrapping them in an envelope would be unused noise and would break HTMX's behavior. The envelope is meaningful only for endpoints designed for programmatic consumption.
+**Alternatives considered:** Retrofit all `/api/` endpoints — breaks existing tests, wraps HTMX endpoints that don't benefit from it.
+
 ## HTMX for inline YAML validation — 2026-05-15
 **What:** The criteria editor uses `hx-post="/api/criteria/validate"` with `hx-trigger="input delay:700ms"` to stream validation results into a `#validation-panel` div without a full page reload.
 **Why:** HTMX replaces the need for custom JavaScript for this interaction. The server already has `validate_criteria_yaml()` — wrapping it in an HTMX endpoint is ~20 lines. The alternative (full form submit on every keystroke) would be disruptive to the editing experience.

@@ -1,0 +1,76 @@
+{% extends "base.html" %}
+{% block title %}Exports — Web Scraper{% endblock %}
+{% block content %}
+<div class="min-h-screen p-8">
+    <div class="mx-auto max-w-6xl">
+
+        <!-- Header -->
+        <div class="mb-6">
+            <h1 class="text-2xl font-semibold tracking-tight text-gray-900 dark:text-gray-100">Exports</h1>
+            <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">Download records as CSV or XLSX.</p>
+        </div>
+
+        <!-- Export trigger form -->
+        <div class="mb-8 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 p-6 shadow-sm">
+            <h2 class="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-4">New Export</h2>
+            <form hx-post="/api/exports" class="flex flex-wrap items-center gap-3">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                <label for="export-format" class="text-sm text-gray-600 dark:text-gray-400">Format</label>
+                <select
+                    id="export-format"
+                    name="format"
+                    class="rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 px-3 py-1.5 text-sm text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                >
+                    <option value="csv">CSV</option>
+                    <option value="xlsx">XLSX</option>
+                </select>
+                <button
+                    type="submit"
+                    class="rounded-md bg-blue-600 px-4 py-1.5 text-sm font-medium text-white hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
+                >
+                    Export All Records
+                </button>
+            </form>
+            <p class="mt-3 text-xs text-gray-400 dark:text-gray-500">
+                To export a filtered subset, use the
+                <a href="/records" class="underline hover:text-blue-600 dark:hover:text-blue-400">Records</a>
+                page and click the Export button there.
+            </p>
+        </div>
+
+        <!-- Export history -->
+        <h2 class="text-base font-semibold text-gray-900 dark:text-gray-100 mb-3">History</h2>
+        {% if not exports %}
+        <div class="rounded-lg border border-dashed border-gray-300 dark:border-gray-700 p-12 text-center">
+            <p class="text-sm text-gray-500 dark:text-gray-400">No exports yet. Click Export above to create one.</p>
+        </div>
+        {% else %}
+        <div class="overflow-hidden rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 shadow-sm">
+            <table class="min-w-full divide-y divide-gray-200 dark:divide-gray-700 text-sm">
+                <thead class="bg-gray-50 dark:bg-gray-900/50">
+                    <tr>
+                        <th scope="col" class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">Created</th>
+                        <th scope="col" class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">Format</th>
+                        <th scope="col" class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">Rows</th>
+                        <th scope="col" class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">Status</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-gray-100 dark:divide-gray-700/50">
+                    {% for export in exports %}
+                    <tr>
+                        <td class="px-4 py-3 text-sm text-gray-500 dark:text-gray-400 whitespace-nowrap">{{ export.created_at }}</td>
+                        <td class="px-4 py-3 font-mono text-xs text-gray-700 dark:text-gray-300 uppercase">{{ export.format }}</td>
+                        <td class="px-4 py-3 text-sm text-gray-700 dark:text-gray-300">
+                            {% if export.row_count is not none %}{{ export.row_count }}{% else %}—{% endif %}
+                        </td>
+                        {% include "exports/_status.html" %}
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% endif %}
+
+    </div>
+</div>
+{% endblock %}

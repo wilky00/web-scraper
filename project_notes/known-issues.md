@@ -64,3 +64,38 @@
 **Status:** open — acceptable for MVP
 **Description:** `RobotsCache` caches robots.txt per domain in a dict on the object instance. A new instance is created per job run, so the cache does not persist across jobs or worker restarts. Every new job re-fetches robots.txt for all domains.
 **Ref:** `app/crawl/robots.py`
+
+## Status badge on job detail page does not auto-update — Phase 6
+**Status:** open — acceptable for MVP
+**Description:** The status badge at the top of `/jobs/{id}` is rendered on initial page load and does not update during HTMX event-log polling. The event log (`#events-poll`) updates every 2s while the job is active, but the badge in the page header is static. Final status is only visible after a full page reload.
+**Workaround:** User can reload the page once polling stops to see the final status badge. Acceptable for MVP — the event log stream makes current state clear.
+**Ref:** `app/templates/jobs/detail.html`, `app/templates/jobs/_events_poll.html`
+
+## Resume re-runs job from scratch; raw_search_results grows on repeated resume — Phase 6
+**Status:** open — acceptable for MVP
+**Description:** `POST /api/jobs/{id}/resume` re-enqueues the job to run from the beginning. There is no mid-stream checkpoint. Records stored before the pause are preserved; the resumed run may create duplicate `BusinessRecord` rows (caught by dedup) and additional `RawSearchResult` rows (not deduplicated). On repeated pause/resume cycles, `raw_search_results` grows unboundedly for the same job.
+**Workaround:** Acceptable for MVP. A future improvement would store a connector cursor/offset to enable true resume.
+**Ref:** `app/api/jobs.py:resume_job()`, `app/jobs/orchestrator.py`
+
+## Accessibility scan not performed on Phase 6 UI — Phase 6
+**Status:** open
+**Description:** No axe-core or Lighthouse scan has been run on the job detail page (`/jobs/{id}`) or the events polling fragment (`/jobs/{id}/events`). These pages use semantic HTML, keyboard-accessible buttons with visible labels, and consistent Tailwind color scheme matching earlier pages, but no automated scan has confirmed WCAG 2.1 AA compliance.
+**Workaround:** Run Lighthouse accessibility audit once the app is accessible in a browser (requires `docker compose up`). Target score ≥ 90. Address any critical/serious issues before staging deploy.
+**Ref:** `app/templates/jobs/detail.html`, `app/templates/jobs/_events_poll.html`
+
+## Accessibility scan not performed on Phase 7 UI — Phase 7
+**Status:** open
+**Description:** No axe-core or Lighthouse scan has been run on the records list (`/records`), detail (`/records/{id}`), inline edit form (`/records/{id}/edit` HTMX partial), or add modal pages. These pages follow the same Tailwind patterns as earlier pages but no automated scan has confirmed WCAG 2.1 AA compliance.
+**Workaround:** Run Lighthouse accessibility audit once the app is accessible in a browser. Target score ≥ 90.
+**Ref:** `app/templates/records/list.html`, `app/templates/records/detail.html`, `app/templates/records/_edit_form.html`, `app/templates/records/_add_modal.html`
+
+## API token management UI not implemented — Phase 7
+**Status:** open — deferred
+**Description:** `POST /api/auth/token` and `DELETE /api/auth/token` exist and work (20 tests pass), but there is no UI page for managing tokens. A user must call the API directly (e.g., with curl) to generate or revoke their token. A simple token management page on a settings/profile page would be the natural home for this.
+**Workaround:** Use curl: `curl -X POST http://localhost:8000/api/auth/token -H "Content-Type: application/json" -d '{"scopes":["records:read"]}' -b session=<cookie>`. Defer to Phase 8 or pre-deploy hardening.
+
+## `test_migrations.py` does not assert new `api_key_hash`/`api_key_scopes` columns — Phase 7
+**Status:** open — minor gap
+**Description:** `tests/integration/test_migrations.py::test_users_table_has_expected_columns` checks a subset of user columns but does not assert the Sprint 7.2 migration columns (`api_key_hash`, `api_key_scopes`) exist. These columns will be present after `alembic upgrade head`, but the integration test does not verify it.
+**Workaround:** Acceptable for MVP. Add assertions in a future integration test sprint.
+**Ref:** `tests/integration/test_migrations.py:84-86`, `migrations/versions/a1b2c3d4e5f6_add_api_token_to_users.py`

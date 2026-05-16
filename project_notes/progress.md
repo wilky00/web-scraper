@@ -227,7 +227,10 @@ Deferred: Resume re-runs from scratch (no checkpoint) → acceptable for MVP
   - NOTE: `extract_fields()` added to `ConnectorBase` (default returns `{}`) + implemented in `FixtureConnector`
   - NOTE: Integration tests skipped in local runs (Docker Desktop not running); pass in CI against test DB
 
-## Phase 7 — Records UI + REST API
+## Phase 7 — Records UI + REST API — COMPLETE (2026-05-16)
+559/559 unit + API tests green | ruff clean | mypy strict clean | pip-audit clean
+Deferred: Accessibility scan for Phase 7 UI (records pages) → pre-deploy hardening
+Deferred: Integration tests (require Docker DB) → CI only
 
 ### Sprint 7.1 — Records Table & Detail — COMPLETE (verified green 2026-05-16, 539/539 tests, ruff+mypy clean)
 - [x] `app/web/records.py` — `GET /records` list page (filter/sort/paginate), `GET /records/{id}` detail page, `GET /records/{id}/edit` HTMX partial
@@ -257,6 +260,24 @@ Deferred: Resume re-runs from scratch (no checkpoint) → acceptable for MVP
   - NOTE: One token per user; stored as `api_key_hash` + `api_key_scopes` (JSONB) on users table
   - NOTE: `_require_records_read` stored as module-level var so tests can use `dependency_overrides`
   - NOTE: HTMX POST endpoints unchanged — they use session auth; envelope only on new JSON GET endpoints
+
+## Phase 8 — Exports + Audit Log UI + Dashboard
+
+### Sprint 8.1 — Export + Raw HTML Upload
+- [ ] `app/services/__init__.py` — package init
+- [ ] `app/services/storage.py` — S3/MinIO boto3 wrapper (upload_bytes, download_bytes, generate_export_key, generate_html_key)
+- [ ] `app/jobs/export_task.py` — RQ task: query → CSV/XLSX → upload → update Export status → audit log
+- [ ] `app/api/exports.py` — POST /api/exports (create), GET /api/exports/{id} (JSON status)
+- [ ] `app/web/exports.py` — GET /exports, GET /exports/{id}/status (HTMX partial), GET /exports/{id}/download (proxy stream)
+- [ ] `app/templates/exports/list.html` — export trigger form + history table with HTMX polling
+- [ ] `app/templates/exports/_status.html` — HTMX status badge fragment (pending→processing→ready+link)
+- [ ] `app/worker/persist.py` — wire raw HTML upload via storage service; graceful no-op if S3 not configured
+- [ ] `app/templates/records/list.html` — add Export button posting current filter params
+- [ ] `app/main.py` — register api_exports_router + web_exports_router
+- [ ] `app/templates/base.html` — add Exports nav link
+- [ ] `tests/unit/test_storage.py` — upload/download/key-gen with mocked boto3
+- [ ] `tests/unit/test_export_task.py` — CSV/XLSX generation, status transitions, audit log, error path
+- [ ] `tests/api/test_exports_api.py` — create, status, download proxy, auth enforcement
 
 ## Phase 4 COMPLETE — 2026-05-15
 - 298/298 tests green (291 unit + 7 Playwright integration)

@@ -12,13 +12,39 @@
                     {{ total }} record{{ "s" if total != 1 else "" }} total
                 </p>
             </div>
-            <button
-                @click="addModal = true"
-                type="button"
-                class="inline-flex items-center rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
-            >
-                Add Record
-            </button>
+            <div class="flex items-center gap-2">
+                <!-- Export form with current filter state as hidden inputs -->
+                <form hx-post="/api/exports" class="inline-flex">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                    <input type="hidden" name="q" value="{{ filters.q }}">
+                    <input type="hidden" name="status" value="{{ filters.status }}">
+                    <input type="hidden" name="score_min" value="{{ filters.score_min }}">
+                    <input type="hidden" name="score_max" value="{{ filters.score_max }}">
+                    <input type="hidden" name="date_from" value="{{ filters.date_from }}">
+                    <input type="hidden" name="date_to" value="{{ filters.date_to }}">
+                    <select
+                        name="format"
+                        aria-label="Export format"
+                        class="rounded-l-md border border-r-0 border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 px-2 py-1.5 text-sm text-gray-700 dark:text-gray-200 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    >
+                        <option value="csv">CSV</option>
+                        <option value="xlsx">XLSX</option>
+                    </select>
+                    <button
+                        type="submit"
+                        class="rounded-r-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 px-3 py-1.5 text-sm font-medium text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-600 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    >
+                        Export
+                    </button>
+                </form>
+                <button
+                    @click="addModal = true"
+                    type="button"
+                    class="inline-flex items-center rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
+                >
+                    Add Record
+                </button>
+            </div>
         </div>
 
         <!-- Filter form -->

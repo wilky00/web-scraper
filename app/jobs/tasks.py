@@ -61,9 +61,7 @@ async def _async_main(job_id_str: str) -> None:
                 CriteriaVersion, job.criteria_version_id
             )
             if criteria_version is None:
-                log.error(
-                    "task.criteria_not_found", version_id=str(job.criteria_version_id)
-                )
+                log.error("task.criteria_not_found", version_id=str(job.criteria_version_id))
                 return
 
             criteria = CriteriaConfig.model_validate(criteria_version.config_snapshot)
@@ -76,6 +74,7 @@ async def _async_main(job_id_str: str) -> None:
                     criteria=criteria,
                     crawl_config=configs.crawl,
                     fetcher=fetcher,
+                    settings=settings,
                 )
     finally:
         await engine.dispose()

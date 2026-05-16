@@ -99,8 +99,8 @@ class DeduplicationEngine:
                 state_a = (a.location_state or "").strip().lower()
                 state_b = (b.location_state or "").strip().lower()
 
-                city_ok = (not city_a or not city_b or city_a == city_b)
-                state_ok = (not state_a or not state_b or state_a == state_b)
+                city_ok = not city_a or not city_b or city_a == city_b
+                state_ok = not state_a or not state_b or state_a == state_b
 
                 if city_ok and state_ok:
                     self._union(parent, i, j)
