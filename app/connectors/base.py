@@ -26,6 +26,15 @@ class ConnectorBase(ABC):
     #: Matches the key used in connectors.yml and ConnectorRegistry.
     connector_type: str
 
+    def extract_fields(self, raw_data: dict[str, Any]) -> dict[str, str | None]:
+        """Extract standard fields from a raw connector result.
+
+        Returns a flat dict with keys: name, website, email, phone,
+        address, location_city, location_state.  Missing fields are absent
+        or None.  Subclasses override this to parse their raw_data format.
+        """
+        return {}
+
     @abstractmethod
     async def discover(self, job_config: dict[str, Any]) -> AsyncIterator[ConnectorResult]:
         """Yield raw search results for the given job configuration.

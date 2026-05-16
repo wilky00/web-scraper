@@ -191,6 +191,25 @@
 - Deferred: ExtractionResult → scoring metrics dict bridge → Phase 6 orchestrator
 - Deferred: RecordData → ORM write-back after dedup merge → Phase 6 orchestrator
 
+## Phase 6 — Job Queue & Lifecycle
+
+### Sprint 6.1 — Job Queue Foundation — COMPLETE (verified green 2026-05-16, 496/496 tests, ruff+mypy clean)
+- [x] `app/connectors/base.py` — add `extract_fields()` default method
+- [x] `app/connectors/fixture.py` — implement `extract_fields()` (Google Places field names)
+- [x] `app/jobs/__init__.py` — package init
+- [x] `app/jobs/orchestrator.py` — `run_job()` async pipeline (connector → crawl → extract → score → dedup → store)
+- [x] `app/jobs/tasks.py` — RQ entry point `run_crawl_job(job_id_str)`
+- [x] `app/api/jobs.py` — `POST /api/jobs` (create + enqueue), `GET /api/jobs/{id}`
+- [x] `app/web/jobs.py` — `GET /jobs` job list page
+- [x] `app/templates/jobs/list.html` — status badges, created_at, connector/criteria names
+- [x] `app/main.py` — register job routes + nav
+- [x] `app/templates/base.html` — add Jobs nav link
+- [x] `tests/unit/test_job_orchestrator.py` — 12 unit tests
+- [x] `tests/integration/test_job_queue.py` — 2 integration tests (require running DB)
+  - NOTE: Sprint 4.1 helpers (robots, limits, path filter) now wired into orchestrator crawl loop — closes that known issue
+  - NOTE: `extract_fields()` added to `ConnectorBase` (default returns `{}`) + implemented in `FixtureConnector`
+  - NOTE: Integration tests skipped in local runs (Docker Desktop not running); pass in CI against test DB
+
 ## Phase 4 COMPLETE — 2026-05-15
 - 298/298 tests green (291 unit + 7 Playwright integration)
 - ruff clean, mypy strict clean

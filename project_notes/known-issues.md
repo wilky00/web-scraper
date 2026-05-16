@@ -44,9 +44,9 @@
 **Ref:** `app/worker/persist.py:23`
 
 ## Sprint 4.1 helpers not wired into `PageFetcher`
-**Status:** open — deferred to Phase 6
-**Description:** `RobotsCache`, `is_path_blocked`, `is_content_type_blocked`, and `PageLimitTracker` exist but are not called from `PageFetcher.fetch()`. The Phase 6 job orchestrator is the correct integration point. Until then, no robots/filter/limits enforcement happens on fetches.
-**Ref:** `app/worker/fetcher.py`, `app/crawl/`
+**Status:** RESOLVED in Sprint 6.1
+**Description:** `RobotsCache`, `is_path_blocked`, `is_content_type_blocked`, and `PageLimitTracker` are now called from `app/jobs/orchestrator.py`'s `_try_crawl()` helper. `PageFetcher` remains a pure fetch primitive; the orchestrator composes all four modules.
+**Ref:** `app/jobs/orchestrator.py:_try_crawl()`
 
 ## Dedup domain matching doesn't collapse subdomains — Phase 5
 **Status:** open — acceptable for MVP

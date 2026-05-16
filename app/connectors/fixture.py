@@ -27,6 +27,31 @@ class FixtureConnector(ConnectorBase):
     def __init__(self, fixture_dir: str | Path) -> None:
         self._fixture_dir = Path(fixture_dir)
 
+    def extract_fields(self, raw_data: dict[str, Any]) -> dict[str, str | None]:
+        """Map fixture / Google-Places-style raw_data to standard field names."""
+        address = raw_data.get("formatted_address") or raw_data.get("address") or None
+        city: str | None = None
+        state: str | None = None
+        if address:
+            parts = [p.strip() for p in address.split(",")]
+            # "Street, City, ST Zip" — city is the second-to-last comma-part
+            if len(parts) >= 2:
+                city = parts[-2].strip() or None
+            if parts:
+                state_zip = parts[-1].strip().split()
+                if state_zip:
+                    state = state_zip[0] or None
+        phone = raw_data.get("phone") or raw_data.get("formatted_phone_number") or None
+        return {
+            "name": raw_data.get("name") or None,
+            "website": raw_data.get("website") or raw_data.get("url") or None,
+            "email": raw_data.get("email") or None,
+            "phone": phone,
+            "address": address,
+            "location_city": city,
+            "location_state": state,
+        }
+
     async def discover(self, job_config: dict[str, Any]) -> AsyncIterator[ConnectorResult]:
         if not self._fixture_dir.exists():
             logger.warning(
