@@ -244,6 +244,20 @@ Deferred: Resume re-runs from scratch (no checkpoint) → acceptable for MVP
   - NOTE: Delete is POST /api/records/{id}/delete (soft delete — sets status="deleted")
   - NOTE: Cancel edit navigates back to /records/{id} as a plain link (full page reload)
 
+### Sprint 7.2 — REST API — COMPLETE (verified green 2026-05-16, 559/559 tests, ruff+mypy clean)
+- [x] `app/models/user.py` — add `api_key_hash` + `api_key_scopes` columns
+- [x] `migrations/versions/a1b2c3d4e5f6_add_api_token_to_users.py` — Alembic migration
+- [x] `app/auth/permissions.py` — add `require_api_token(scope)` factory (HMAC-keyed token hash)
+- [x] `app/api/auth.py` — add `POST /api/auth/token` (generate) + `DELETE /api/auth/token` (revoke)
+- [x] `app/api/records.py` — add `GET /api/records` + `GET /api/records/{id}` (token auth, JSON envelope)
+- [x] `app/api/connectors.py` — `GET /api/connectors` (session auth)
+- [x] `app/main.py` — global exception handlers (422/500); disable `/docs` when ENVIRONMENT=production
+- [x] `tests/api/test_token_auth.py` — 20 tests: token CRUD, scope enforcement, GET records endpoints
+  - NOTE: Token hash uses HMAC-SHA256 keyed with `api_token_secret` (not plain SHA-256 — server-secret keyed)
+  - NOTE: One token per user; stored as `api_key_hash` + `api_key_scopes` (JSONB) on users table
+  - NOTE: `_require_records_read` stored as module-level var so tests can use `dependency_overrides`
+  - NOTE: HTMX POST endpoints unchanged — they use session auth; envelope only on new JSON GET endpoints
+
 ## Phase 4 COMPLETE — 2026-05-15
 - 298/298 tests green (291 unit + 7 Playwright integration)
 - ruff clean, mypy strict clean

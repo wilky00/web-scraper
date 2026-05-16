@@ -3,17 +3,20 @@
 from __future__ import annotations
 
 import contextlib
+import os
 from collections.abc import AsyncIterator
 from typing import Any
 
 import redis.asyncio as aioredis
 import structlog
 from fastapi import FastAPI, Request
+from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse, RedirectResponse
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncEngine, create_async_engine
 
 from app.api.auth import router as api_auth_router
+from app.api.connectors import router as api_connectors_router
 from app.api.criteria import router as api_criteria_router
 from app.api.jobs import router as api_jobs_router
 from app.api.records import router as api_records_router
@@ -26,6 +29,8 @@ from app.web.criteria import router as web_criteria_router
 from app.web.dashboard import router as web_dashboard_router
 from app.web.jobs import router as web_jobs_router
 from app.web.records import router as web_records_router
+
+_env = os.getenv("ENVIRONMENT", "local")
 
 logger = structlog.get_logger()
 
@@ -70,7 +75,7 @@ app = FastAPI(
     title="Web Scraper",
     version="0.1.0",
     lifespan=lifespan,
-    docs_url="/docs",
+    docs_url="/docs" if _env != "production" else None,
     redoc_url=None,
 )
 
@@ -82,12 +87,31 @@ async def not_authenticated_handler(
     return RedirectResponse(url="/login", status_code=303)
 
 
+@app.exception_handler(RequestValidationError)
+async def validation_exception_handler(
+    request: Request, exc: RequestValidationError
+) -> JSONResponse:
+    # Only wrap /api/ paths in the envelope; let FastAPI handle HTML pages normally
+    if request.url.path.startswith("/api/"):
+        errors = [str(e.get("msg", e)) for e in exc.errors()]
+        return JSONResponse({"data": None, "errors": errors}, status_code=422)
+    return JSONResponse({"detail": exc.errors()}, status_code=422)
+
+
+@app.exception_handler(500)
+async def internal_error_handler(request: Request, exc: Exception) -> JSONResponse:
+    if request.url.path.startswith("/api/"):
+        return JSONResponse({"data": None, "errors": ["Internal server error"]}, status_code=500)
+    return JSONResponse({"detail": "Internal server error"}, status_code=500)
+
+
 app.include_router(web_auth_router)
 app.include_router(web_dashboard_router)
 app.include_router(web_criteria_router)
 app.include_router(web_jobs_router)
 app.include_router(web_records_router)
 app.include_router(api_auth_router)
+app.include_router(api_connectors_router)
 app.include_router(api_criteria_router)
 app.include_router(api_jobs_router)
 app.include_router(api_records_router)

@@ -1,19 +1,23 @@
 # ABOUTME: Auth form-submission endpoints: POST /auth/login and POST /auth/logout.
-# ABOUTME: Login validates CSRF, rate-limits by IP, verifies credentials, and sets a session cookie.
+# ABOUTME: Also handles API token generation and revocation (POST/DELETE /api/auth/token).
 from __future__ import annotations
 
+import hashlib
+import hmac
 import secrets
 from pathlib import Path
+from typing import Any
 
 import structlog
-from fastapi import APIRouter, Cookie, Form, Request
-from fastapi.responses import HTMLResponse, RedirectResponse, Response
+from fastapi import APIRouter, Cookie, Depends, Form, Request
+from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse, Response
 from fastapi.templating import Jinja2Templates
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.auth.csrf import generate_form_csrf, verify_form_csrf
 from app.auth.hashing import verify_password
+from app.auth.permissions import require_operator
 from app.auth.rate_limit import check_login_rate_limit
 from app.auth.session import (
     SESSION_COOKIE,
@@ -136,3 +140,73 @@ async def logout(
     redirect = RedirectResponse(url="/login", status_code=303)
     clear_session_cookie(redirect)
     return redirect
+
+
+# ── API token management ──────────────────────────────────────────────────────
+
+_VALID_SCOPES: set[str] = {"records:read", "records:write"}
+
+
+def _hash_api_token(token: str, secret: str) -> str:
+    return hmac.new(secret.encode(), token.encode(), hashlib.sha256).hexdigest()
+
+
+@router.post("/api/auth/token", status_code=201)
+async def generate_api_token(
+    request: Request,
+    user: User = Depends(require_operator),
+) -> JSONResponse:
+    """Generate (or regenerate) an API token for the authenticated user.
+
+    Body: {"scopes": ["records:read"]}  (JSON)
+    Response: {"token": "<plaintext — shown once>", "scopes": [...]}
+    """
+    body: dict[str, Any] = {}
+    try:
+        body = await request.json()
+    except Exception:
+        return JSONResponse({"error": "Request body must be JSON"}, status_code=400)
+
+    scopes: list[str] = body.get("scopes", [])
+    if not scopes:
+        return JSONResponse({"error": "At least one scope is required"}, status_code=422)
+
+    invalid = sorted(set(scopes) - _VALID_SCOPES)
+    if invalid:
+        return JSONResponse({"error": f"Invalid scopes: {invalid}"}, status_code=422)
+
+    token = secrets.token_urlsafe(32)
+    settings: Settings = request.app.state.settings
+    token_hash = _hash_api_token(token, settings.api_token_secret)
+
+    async with AsyncSession(request.app.state.engine) as db:
+        db_user: User | None = await db.get(User, user.id)
+        if db_user is None:
+            return JSONResponse({"error": "User not found"}, status_code=404)
+        db_user.api_key_hash = token_hash
+        db_user.api_key_scopes = scopes
+        await db.commit()
+
+    logger.info("auth.token.generated", user_id=str(user.id), scopes=scopes)
+    return JSONResponse({"token": token, "scopes": scopes}, status_code=201)
+
+
+@router.delete("/api/auth/token")
+async def revoke_api_token(
+    request: Request,
+    user: User = Depends(require_operator),
+) -> Response:
+    """Revoke the API token for the authenticated user."""
+    if user.api_key_hash is None:
+        return JSONResponse({"error": "No API token to revoke"}, status_code=404)
+
+    async with AsyncSession(request.app.state.engine) as db:
+        db_user: User | None = await db.get(User, user.id)
+        if db_user is None:
+            return JSONResponse({"error": "User not found"}, status_code=404)
+        db_user.api_key_hash = None
+        db_user.api_key_scopes = None
+        await db.commit()
+
+    logger.info("auth.token.revoked", user_id=str(user.id))
+    return Response(status_code=204)

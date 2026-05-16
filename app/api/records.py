@@ -1,19 +1,24 @@
-# ABOUTME: Records API endpoints — create, update (inline edit), and soft-delete business records.
-# ABOUTME: All mutating endpoints require CSRF validation and write audit log entries.
+# ABOUTME: Records API — HTMX-driven create/update/delete (session auth) and
+# ABOUTME: machine-readable GET list + detail endpoints (Bearer token auth, JSON envelope).
 from __future__ import annotations
 
+import math
 import secrets
 import uuid
+from datetime import UTC, date, datetime
+from decimal import Decimal, InvalidOperation
+from typing import Any
 
 import structlog
-from fastapi import APIRouter, Cookie, Depends, Form, Request
+from fastapi import APIRouter, Cookie, Depends, Form, Query, Request
 from fastapi.responses import JSONResponse, Response
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.auth.permissions import require_operator
+from app.auth.permissions import require_api_token, require_operator
 from app.auth.session import SESSION_COOKIE, get_session
 from app.models.audit import RecordAuditLog
-from app.models.record import BusinessRecord
+from app.models.record import BusinessRecord, RecordSource
 from app.models.user import User
 from app.settings import Settings
 
@@ -22,6 +27,17 @@ logger = structlog.get_logger(__name__)
 router = APIRouter()
 
 _EDITABLE_STATUSES = {"active", "excluded", "deleted"}
+PAGE_SIZE = 25
+
+_SORT_COLUMNS: dict[str, Any] = {
+    "name": BusinessRecord.name,
+    "match_score": BusinessRecord.match_score,
+    "status": BusinessRecord.status,
+    "created_at": BusinessRecord.created_at,
+}
+
+# Module-level dependency instances — stored so tests can override via dependency_overrides.
+_require_records_read = require_api_token("records:read")
 
 
 async def _check_csrf(
@@ -214,3 +230,150 @@ async def delete_record(
 
     logger.info("record.deleted", record_id=record_id, user_id=str(user.id))
     return Response(status_code=200, headers={"HX-Redirect": "/records"})
+
+
+# ── Machine-readable REST endpoints (Bearer token auth) ──────────────────────
+
+
+def _record_to_dict(r: BusinessRecord) -> dict[str, Any]:
+    return {
+        "id": str(r.id),
+        "name": r.name,
+        "website": r.website,
+        "email": r.email,
+        "phone": r.phone,
+        "address": r.address,
+        "location_city": r.location_city,
+        "location_state": r.location_state,
+        "location_country": r.location_country,
+        "match_score": float(r.match_score) if r.match_score is not None else None,
+        "status": r.status,
+        "job_id": str(r.job_id) if r.job_id else None,
+        "created_at": r.created_at.isoformat() if r.created_at else None,
+    }
+
+
+@router.get("/api/records")
+async def api_list_records(
+    request: Request,
+    q: str = Query(default=""),
+    status: str = Query(default=""),
+    score_min: str = Query(default=""),
+    score_max: str = Query(default=""),
+    date_from: str = Query(default=""),
+    date_to: str = Query(default=""),
+    sort: str = Query(default="created_at"),
+    order: str = Query(default="desc"),
+    page: int = Query(default=1, ge=1),
+    user: User = Depends(_require_records_read),
+) -> JSONResponse:
+    if sort not in _SORT_COLUMNS:
+        sort = "created_at"
+    if order not in ("asc", "desc"):
+        order = "desc"
+
+    base_query = select(BusinessRecord)
+
+    if q.strip():
+        base_query = base_query.where(BusinessRecord.name.ilike(f"%{q.strip()}%"))
+    if status.strip():
+        base_query = base_query.where(BusinessRecord.status == status.strip())
+    if score_min.strip():
+        try:
+            base_query = base_query.where(BusinessRecord.match_score >= Decimal(score_min.strip()))
+        except InvalidOperation:
+            pass
+    if score_max.strip():
+        try:
+            base_query = base_query.where(BusinessRecord.match_score <= Decimal(score_max.strip()))
+        except InvalidOperation:
+            pass
+    if date_from.strip():
+        try:
+            dt_from = datetime.combine(
+                date.fromisoformat(date_from.strip()), datetime.min.time(), tzinfo=UTC
+            )
+            base_query = base_query.where(BusinessRecord.created_at >= dt_from)
+        except ValueError:
+            pass
+    if date_to.strip():
+        try:
+            dt_to = datetime.combine(
+                date.fromisoformat(date_to.strip()), datetime.max.time(), tzinfo=UTC
+            )
+            base_query = base_query.where(BusinessRecord.created_at <= dt_to)
+        except ValueError:
+            pass
+
+    sort_col = _SORT_COLUMNS[sort]
+
+    async with AsyncSession(request.app.state.engine) as db:
+        count_result = await db.execute(select(func.count()).select_from(base_query.subquery()))
+        total = count_result.scalar() or 0
+
+        paged_query = base_query
+        if order == "asc":
+            paged_query = paged_query.order_by(sort_col.asc())
+        else:
+            paged_query = paged_query.order_by(sort_col.desc())
+        paged_query = paged_query.offset((page - 1) * PAGE_SIZE).limit(PAGE_SIZE)
+
+        records = list((await db.execute(paged_query)).scalars().all())
+
+    total_pages = max(1, math.ceil(total / PAGE_SIZE))
+
+    return JSONResponse(
+        {
+            "data": [_record_to_dict(r) for r in records],
+            "pagination": {
+                "page": page,
+                "page_size": PAGE_SIZE,
+                "total": total,
+                "total_pages": total_pages,
+            },
+            "errors": [],
+        }
+    )
+
+
+@router.get("/api/records/{record_id}")
+async def api_get_record(
+    record_id: str,
+    request: Request,
+    user: User = Depends(_require_records_read),
+) -> JSONResponse:
+    try:
+        parsed_id = uuid.UUID(record_id)
+    except ValueError:
+        return JSONResponse({"data": None, "errors": ["Invalid record ID"]}, status_code=422)
+
+    async with AsyncSession(request.app.state.engine) as db:
+        record: BusinessRecord | None = await db.get(BusinessRecord, parsed_id)
+        if record is None:
+            return JSONResponse({"data": None, "errors": ["Record not found"]}, status_code=404)
+
+        sources_result = await db.execute(
+            select(RecordSource)
+            .where(RecordSource.record_id == parsed_id)
+            .order_by(RecordSource.field.asc())
+        )
+        sources = list(sources_result.scalars().all())
+
+    return JSONResponse(
+        {
+            "data": {
+                **_record_to_dict(record),
+                "rule_results": record.rule_results or {},
+                "sources": [
+                    {
+                        "field": s.field,
+                        "source_url": s.source_url,
+                        "source_type": s.source_type,
+                        "raw_value": s.raw_value,
+                    }
+                    for s in sources
+                ],
+            },
+            "errors": [],
+        }
+    )
