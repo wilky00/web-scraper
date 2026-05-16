@@ -110,6 +110,24 @@
 **Description:** `POST /api/auth/token` and `DELETE /api/auth/token` exist and work (20 tests pass), but there is no UI page for managing tokens. A user must call the API directly (e.g., with curl) to generate or revoke their token. A simple token management page on a settings/profile page would be the natural home for this.
 **Workaround:** Use curl: `curl -X POST http://localhost:8000/api/auth/token -H "Content-Type: application/json" -d '{"scopes":["records:read"]}' -b session=<cookie>`. Defer to Phase 8 or pre-deploy hardening.
 
+## Accessibility scan not performed on Phase 9 AI chat panel — Phase 9
+**Status:** open
+**Description:** No axe-core or Lighthouse scan has been run on the AI Assist chat panel (`app/templates/criteria/_ai_chat.html`). The panel uses semantic HTML, keyboard-accessible buttons with ARIA labels, and consistent color scheme, but no automated scan has confirmed WCAG 2.1 AA compliance.
+**Workaround:** Run Lighthouse accessibility audit once the app is accessible in a browser. Target score ≥ 90. Address critical/serious issues before staging deploy.
+**Ref:** `app/templates/criteria/_ai_chat.html`
+
+## AI chat history lost on page reload — Phase 9
+**Status:** open — acceptable for MVP
+**Description:** The AI chat panel stores conversation history in Alpine.js component state. All messages are lost when the user reloads the page or navigates away from the criteria editor.
+**Workaround:** Acceptable for MVP. A future improvement could persist the conversation to a Redis session key (e.g., `ai_chat:{user_id}:{criteria_group_id}`).
+**Ref:** `app/templates/criteria/_ai_chat.html`
+
+## AI streaming responses not implemented — Phase 9
+**Status:** open — deferred
+**Description:** The AI chat endpoint returns the full response after the model finishes generating. For long YAML responses, this can mean a multi-second wait with only the "Thinking..." indicator. SSE streaming would give progressive output but requires Caddy `flush_interval -1` configuration and ~80 extra lines of JS.
+**Workaround:** Full response mode with the animated loading indicator is sufficient for the two-user MVP. Add streaming by replacing the `fetch()` call with `ReadableStream` processing and configuring Caddy flush interval when latency becomes a UX problem.
+**Ref:** `app/templates/criteria/_ai_chat.html`, `app/api/ai.py`
+
 ## `test_migrations.py` does not assert new `api_key_hash`/`api_key_scopes` columns — Phase 7
 **Status:** open — minor gap
 **Description:** `tests/integration/test_migrations.py::test_users_table_has_expected_columns` checks a subset of user columns but does not assert the Sprint 7.2 migration columns (`api_key_hash`, `api_key_scopes`) exist. These columns will be present after `alembic upgrade head`, but the integration test does not verify it.

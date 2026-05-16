@@ -75,6 +75,21 @@
 **Why:** No JavaScript, no custom events, no `HX-Stop-Polling` header hack. The pattern is idiomatic HTMX 2.x and self-documenting: the presence or absence of `hx-trigger` on the response element controls whether polling continues.
 **Alternatives considered:** JS event listener + `HX-Trigger` response header — more complex, requires inline JS. Poll forever (always include `hx-trigger`) — simple but wastes requests after job completes.
 
+## httpx AsyncClient instead of OpenAI SDK for AI calls — 2026-05-16
+**What:** `app/ai/client.py` uses `httpx.AsyncClient` to POST directly to `/v1/chat/completions`. No `openai` package, no `anthropic` package.
+**Why:** The project targets OpenRouter and LiteLLM, both of which expose an OpenAI-compatible REST API. `httpx` is already a project dependency; adding an SDK just for its HTTP transport would add a pinned dep for no functional benefit. The payload shape is simple: `{"model", "messages", "max_tokens", "temperature"}`. Nothing in the request or response requires SDK-specific features.
+**Alternatives considered:** `openai` package — works with OpenRouter but adds a new dep and couples the codebase to OpenAI's release cycle. `anthropic` package — only works with Anthropic directly; requires provider-specific branching.
+
+## Full response mode (not SSE streaming) for AI chat — 2026-05-16
+**What:** `POST /api/ai/chat` waits for the full model response before returning JSON. The UI shows an animated "Thinking..." loading indicator while waiting.
+**Why:** Streaming via SSE requires `flush_interval -1` in Caddy (not the default) and ~80 extra lines of JavaScript using `ReadableStream` + `TextDecoder` event parsing. The full response approach is a single `fetch()` call with standard JSON parsing — it's more durable through intermediate proxies and simpler to test. For a two-user MVP, the round-trip latency is acceptable.
+**Alternatives considered:** SSE streaming — better UX for long responses but adds Caddy config dependency, JS complexity, and a more fragile proxy chain. Deferred; can be added by replacing the `fetch()` with `ReadableStream` processing without changing the backend response format.
+
+## Client-side chat history (Alpine.js state, not Redis) — 2026-05-16
+**What:** Conversation history is held entirely in Alpine.js `x-data` state. The server receives the last 10 turns as a JSON form field on each request. No server-side session storage.
+**Why:** Two-user MVP. Persisting history to Redis adds a session schema, TTL management, and cross-request state that buys nothing for the MVP use case. History loss on page reload is disclosed to the user in the panel footer.
+**Alternatives considered:** Redis session key `ai_chat:{user_id}:{group_id}` — durable across reloads, natural TTL via Redis expiry. Deferred; add if users find reload-loss frustrating in practice.
+
 ## HTMX inline edit via POST (not PATCH) for records — 2026-05-16
 **What:** `POST /api/records/{id}` handles record updates (inline edit form submit). REST conventions would use PATCH or PUT, but HTMX forms only support GET and POST.
 **Why:** HTMX 2.x does not support `hx-method="PATCH"` natively without a custom extension. Using POST keeps the HTMX template simple and consistent with the other HTMX form endpoints in the project. No external API clients were consuming this endpoint at the time it was designed.

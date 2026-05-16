@@ -317,6 +317,12 @@ Deferred: Token management UI (generate/revoke via browser) → deferred from Ph
 - [x] `app/web/criteria.py` — add `ai_enabled: bool` to template context
 - [x] `app/templates/criteria/editor.html` — include chat partial below editor grid
 
+## Phase 9 COMPLETE — 2026-05-16
+642/642 unit + API tests green | ruff clean | mypy strict clean
+Deferred: Accessibility scan for chat panel UI → pre-deploy hardening
+Deferred: Chat history persistence (lost on page reload) → acceptable for MVP
+Deferred: Streaming responses (SSE) → deferred; full response + loading indicator sufficient for two-user MVP
+
 ## Phase 4 COMPLETE — 2026-05-15
 - 298/298 tests green (291 unit + 7 Playwright integration)
 - ruff clean, mypy strict clean
