@@ -185,6 +185,12 @@
   - NOTE: Missing city/state on either side is a wildcard — only conflicts when both sides have a value that differs
   - NOTE: Merge is in-place mutation on RecordData dataclasses; DB writes deferred to Phase 6 orchestrator
 
+## Phase 5 COMPLETE — 2026-05-15
+- 484/484 unit tests green | ruff clean | mypy strict clean
+- Deferred: ExtractedField → record_sources DB writes → Phase 6 orchestrator
+- Deferred: ExtractionResult → scoring metrics dict bridge → Phase 6 orchestrator
+- Deferred: RecordData → ORM write-back after dedup merge → Phase 6 orchestrator
+
 ## Phase 4 COMPLETE — 2026-05-15
 - 298/298 tests green (291 unit + 7 Playwright integration)
 - ruff clean, mypy strict clean

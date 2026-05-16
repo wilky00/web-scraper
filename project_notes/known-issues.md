@@ -48,6 +48,18 @@
 **Description:** `RobotsCache`, `is_path_blocked`, `is_content_type_blocked`, and `PageLimitTracker` exist but are not called from `PageFetcher.fetch()`. The Phase 6 job orchestrator is the correct integration point. Until then, no robots/filter/limits enforcement happens on fetches.
 **Ref:** `app/worker/fetcher.py`, `app/crawl/`
 
+## Dedup domain matching doesn't collapse subdomains — Phase 5
+**Status:** open — acceptable for MVP
+**Description:** `normalize_domain` strips only `www.` — `shop.example.com` and `example.com` are treated as different domains and won't be deduped by domain pass. Only exact root-domain matches (after www. strip) are caught.
+**Workaround:** Acceptable for MVP. A future improvement would normalize to registered domain (e.g. via `tldextract`).
+**Ref:** `app/dedup/normalize.py:35-37`
+
+## Phone normalization is US-only in both extraction and dedup — Phase 5
+**Status:** open — intentional for MVP
+**Description:** `app/extraction/phone.py` and `app/dedup/normalize.normalize_phone()` both treat 10-digit NANP format as canonical. International numbers (non-US country codes) are silently discarded.
+**Workaround:** Acceptable for MVP. International support would require a library like `phonenumbers`.
+**Ref:** `app/extraction/phone.py:25-33`, `app/dedup/normalize.py:59-77`
+
 ## `RobotsCache` in-memory only — not shared across jobs
 **Status:** open — acceptable for MVP
 **Description:** `RobotsCache` caches robots.txt per domain in a dict on the object instance. A new instance is created per job run, so the cache does not persist across jobs or worker restarts. Every new job re-fetches robots.txt for all domains.

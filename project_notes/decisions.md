@@ -40,6 +40,21 @@
 **Why:** Unit tests need to `import playwright.async_api` to patch `async_playwright`. Without the package in dev extras, `import app.worker.fetcher` fails with `ModuleNotFoundError` in the unit test runner.
 **Alternatives considered:** Keep playwright only in worker extras and use `importlib.import_module` with a lazy import guard — more complex, obscures the dependency graph.
 
+## Dedup engine uses plain dataclasses, not ORM objects — 2026-05-15
+**What:** `DeduplicationEngine` operates on `RecordData` / `SourceData` dataclasses (defined in `app/dedup/engine.py`), not on `BusinessRecord` / `RecordSource` ORM objects directly. The Phase 6 orchestrator is responsible for mapping ORM rows → dataclasses → running dedup → writing results back to the DB.
+**Why:** Keeps the engine pure and testable without a database. Mirrors the same pattern as `ScoringEngine` (operates on a plain `dict[str, Any]` metrics dict, not ORM rows). Engine tests run without any DB fixtures.
+**Alternatives considered:** ORM-aware engine that opens its own session — makes unit testing require a live DB and couples the engine to SQLAlchemy transaction boundaries.
+
+## Union-find for transitive deduplication grouping — 2026-05-15
+**What:** `DeduplicationEngine.find_duplicates()` uses a union-find data structure (with path compression) to group records transitively. If A matches B and B matches C, all three land in one group regardless of pass order.
+**Why:** A naive "collect all pairs and then group" approach requires a second traversal to merge overlapping pairs. Union-find handles this naturally in O(n²·α(n)) — effectively O(n²) — which is fine for the expected record volumes (<10k per job).
+**Alternatives considered:** Graph connected-components (DFS/BFS) — equivalent complexity, more code. Pair-only dedup (no transitivity) — misses legitimate multi-hop chains.
+
+## Normalization-based name matching without fuzzy library — 2026-05-15
+**What:** Pass 2 of deduplication compares company names after `normalize_name()` (lowercase + strip non-alphanumeric + collapse whitespace). Two names that normalize to the same string are considered duplicates. No edit-distance or Levenshtein library is used.
+**Why:** No new dependency needed. Handles the most common real-world cases: punctuation differences ("Joe's Bakery" vs "Joes Bakery"), legal suffix noise ("LLC" vs "Inc"), casing ("GREEN VALLEY" vs "Green Valley"). Edit-distance fuzzy matching produces too many false positives on short names (e.g. "Ace" matches "Axe") without careful threshold tuning.
+**Alternatives considered:** `rapidfuzz` / `thefuzz` — more powerful, but adds a dependency and requires a similarity threshold that would need empirical calibration. Deferred to a future improvement if MVP false-negative rate is unacceptable.
+
 ## HTMX for inline YAML validation — 2026-05-15
 **What:** The criteria editor uses `hx-post="/api/criteria/validate"` with `hx-trigger="input delay:700ms"` to stream validation results into a `#validation-panel` div without a full page reload.
 **Why:** HTMX replaces the need for custom JavaScript for this interaction. The server already has `validate_criteria_yaml()` — wrapping it in an HTMX endpoint is ~20 lines. The alternative (full form submit on every keystroke) would be disruptive to the editing experience.
