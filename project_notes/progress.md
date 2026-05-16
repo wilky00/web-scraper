@@ -295,6 +295,28 @@ Deferred: Token management UI (generate/revoke via browser) → deferred from Ph
 - [x] `app/templates/base.html` — add Audit Log + Settings nav links
 - [x] `tests/api/test_audit_page.py` — auth, filter by action, filter by date, pagination
 
+## Phase 9 — AI Assist (Criteria Chat)
+
+### Sprint 9.1 — AI Backend (Config + Client + API) — COMPLETE (verified green 2026-05-16, 642/642 tests, ruff+mypy clean)
+- [x] `app/ai/__init__.py` — package init
+- [x] `app/ai/config.py` — AIConfig Pydantic model; `load_ai_config()` soft-fail loader
+- [x] `app/ai/client.py` — httpx `chat_complete()` for OpenAI-compat `/v1/chat/completions`
+- [x] `app/ai/skills.py` — load `config/ai/skills/*.md` into concatenated string
+- [x] `app/ai/chat.py` — `build_messages()`, `extract_yaml_block()`
+- [x] `app/api/ai.py` — `POST /api/ai/chat` (auth, CSRF, rate limit 20/5min per user)
+- [x] `config/ai/skills/criteria_creation.md` — criteria YAML schema reference + example
+- [x] `app/config/loader.py` — add `load_ai_config()`, add `ai: AIConfig | None` to `AppConfigs`
+- [x] `app/main.py` — register `api_ai_router`
+- [x] `.env.example` — already had `AI_API_KEY` documented
+- [x] `tests/unit/test_ai_config.py` — AIConfig validation, soft-fail on missing/invalid file
+- [x] `tests/unit/test_ai_chat.py` — `build_messages()`, `extract_yaml_block()`
+- [x] `tests/api/test_ai_api.py` — auth, CSRF, rate limit, mocked client, 503 when not configured
+
+### Sprint 9.2 — Chat UI
+- [ ] `app/templates/criteria/_ai_chat.html` — Alpine.js chat panel (full-width, collapsible, below editor)
+- [ ] `app/web/criteria.py` — add `ai_enabled: bool` to template context
+- [ ] `app/templates/criteria/editor.html` — include chat partial; add `x-ref="yaml_text"` on textarea
+
 ## Phase 4 COMPLETE — 2026-05-15
 - 298/298 tests green (291 unit + 7 Playwright integration)
 - ruff clean, mypy strict clean

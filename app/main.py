@@ -15,6 +15,7 @@ from fastapi.responses import JSONResponse, RedirectResponse
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncEngine, create_async_engine
 
+from app.api.ai import router as api_ai_router
 from app.api.auth import router as api_auth_router
 from app.api.connectors import router as api_connectors_router
 from app.api.criteria import router as api_criteria_router
@@ -117,6 +118,7 @@ app.include_router(web_exports_router)
 app.include_router(web_jobs_router)
 app.include_router(web_records_router)
 app.include_router(web_settings_router)
+app.include_router(api_ai_router)
 app.include_router(api_auth_router)
 app.include_router(api_connectors_router)
 app.include_router(api_criteria_router)

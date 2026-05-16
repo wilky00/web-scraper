@@ -1,14 +1,15 @@
-# ABOUTME: YAML config file loaders for all four runtime config files.
-# ABOUTME: All loaders raise ConfigLoadError on failure — intended as a hard boot-time fail.
+# ABOUTME: YAML config file loaders for all four runtime config files plus optional AI config.
+# ABOUTME: Core loaders raise ConfigLoadError on failure; load_ai_config() soft-fails with None.
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
 import yaml
 from pydantic import ValidationError
 
+from app.ai.config import AIConfig, load_ai_config
 from app.config.models import AppConfig, ConnectorsConfig, CrawlConfig, RetentionConfig
 
 
@@ -76,13 +77,15 @@ class AppConfigs:
     connectors: ConnectorsConfig
     crawl: CrawlConfig
     retention: RetentionConfig
+    ai: AIConfig | None = field(default=None)
 
 
 def load_all_configs(config_dir: Path) -> AppConfigs:
-    """Load and validate all four runtime config files. Raises ConfigLoadError on any failure."""
+    """Load and validate all config files. Core configs raise ConfigLoadError; AI is optional."""
     return AppConfigs(
         app=load_app_config(config_dir),
         connectors=load_connectors_config(config_dir),
         crawl=load_crawl_config(config_dir),
         retention=load_retention_config(config_dir),
+        ai=load_ai_config(config_dir),
     )
