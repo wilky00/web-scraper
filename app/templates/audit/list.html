@@ -1,0 +1,129 @@
+{% extends "base.html" %}
+{% block title %}Audit Log — Web Scraper{% endblock %}
+{% block content %}
+<div class="p-8">
+    <div class="mx-auto max-w-6xl">
+
+        <div class="flex items-center justify-between mb-6">
+            <h1 class="text-2xl font-semibold tracking-tight text-gray-900 dark:text-gray-100">Audit Log</h1>
+            <span class="text-sm text-gray-500 dark:text-gray-400">{{ total }} entr{{ 'y' if total == 1 else 'ies' }}</span>
+        </div>
+
+        <!-- Filter bar -->
+        <form method="get" action="/audit-log" class="mb-6 flex flex-wrap gap-3 items-end">
+            <div class="flex flex-col gap-1">
+                <label for="action" class="text-xs font-medium text-gray-600 dark:text-gray-400">Action</label>
+                <input
+                    id="action" name="action" type="text" value="{{ filters.action }}"
+                    placeholder="e.g. export"
+                    class="rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 px-3 py-1.5 text-sm text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500 w-36"
+                >
+            </div>
+            <div class="flex flex-col gap-1">
+                <label for="resource_type" class="text-xs font-medium text-gray-600 dark:text-gray-400">Resource Type</label>
+                <input
+                    id="resource_type" name="resource_type" type="text" value="{{ filters.resource_type }}"
+                    placeholder="e.g. record"
+                    class="rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 px-3 py-1.5 text-sm text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500 w-36"
+                >
+            </div>
+            <div class="flex flex-col gap-1">
+                <label for="date_from" class="text-xs font-medium text-gray-600 dark:text-gray-400">From</label>
+                <input
+                    id="date_from" name="date_from" type="date" value="{{ filters.date_from }}"
+                    class="rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 px-3 py-1.5 text-sm text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                >
+            </div>
+            <div class="flex flex-col gap-1">
+                <label for="date_to" class="text-xs font-medium text-gray-600 dark:text-gray-400">To</label>
+                <input
+                    id="date_to" name="date_to" type="date" value="{{ filters.date_to }}"
+                    class="rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 px-3 py-1.5 text-sm text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                >
+            </div>
+            <div class="flex gap-2">
+                <button
+                    type="submit"
+                    class="rounded-md bg-blue-600 px-4 py-1.5 text-sm font-medium text-white hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                >Filter</button>
+                {% if filters.action or filters.resource_type or filters.user_id or filters.date_from or filters.date_to %}
+                <a
+                    href="/audit-log"
+                    class="rounded-md border border-gray-300 dark:border-gray-600 px-4 py-1.5 text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                >Clear</a>
+                {% endif %}
+            </div>
+        </form>
+
+        <!-- Table -->
+        <div class="overflow-x-auto rounded-lg border border-gray-200 dark:border-gray-700">
+            <table class="min-w-full divide-y divide-gray-200 dark:divide-gray-700 text-sm">
+                <thead class="bg-gray-50 dark:bg-gray-800">
+                    <tr>
+                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Timestamp</th>
+                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">User</th>
+                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Action</th>
+                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Resource Type</th>
+                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Resource ID</th>
+                    </tr>
+                </thead>
+                <tbody class="bg-white dark:bg-gray-900 divide-y divide-gray-100 dark:divide-gray-800">
+                    {% if entries %}
+                        {% for entry in entries %}
+                        <tr class="hover:bg-gray-50 dark:hover:bg-gray-800/50">
+                            <td class="px-4 py-3 text-gray-600 dark:text-gray-400 whitespace-nowrap font-mono text-xs">
+                                {{ entry.created_at.strftime('%Y-%m-%d %H:%M:%S') if entry.created_at else '—' }}
+                            </td>
+                            <td class="px-4 py-3 text-gray-700 dark:text-gray-300">
+                                {{ email_map.get(entry.user_id, '—') if entry.user_id else '—' }}
+                            </td>
+                            <td class="px-4 py-3">
+                                <span class="inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium
+                                    {% if entry.action in ('create', 'export') %}bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300
+                                    {% elif entry.action in ('delete',) %}bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-300
+                                    {% elif entry.action in ('update', 'criteria_save') %}bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300
+                                    {% elif entry.action in ('login', 'logout') %}bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-300
+                                    {% else %}bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-300{% endif %}
+                                ">{{ entry.action }}</span>
+                            </td>
+                            <td class="px-4 py-3 text-gray-700 dark:text-gray-300">{{ entry.resource_type }}</td>
+                            <td class="px-4 py-3 font-mono text-xs text-gray-500 dark:text-gray-400">
+                                {{ entry.resource_id[:16] ~ '…' if entry.resource_id and entry.resource_id|length > 16 else (entry.resource_id or '—') }}
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    {% else %}
+                        <tr>
+                            <td colspan="5" class="px-4 py-10 text-center text-gray-400 dark:text-gray-500">No audit log entries match the current filters.</td>
+                        </tr>
+                    {% endif %}
+                </tbody>
+            </table>
+        </div>
+
+        <!-- Pagination -->
+        {% if total_pages > 1 %}
+        <nav aria-label="Audit log pagination" class="mt-4 flex items-center justify-between">
+            <p class="text-sm text-gray-500 dark:text-gray-400">
+                Page {{ page }} of {{ total_pages }}
+            </p>
+            <div class="flex gap-2">
+                {% if page > 1 %}
+                <a
+                    href="/audit-log?page={{ page - 1 }}{% if filter_qs %}&{{ filter_qs }}{% endif %}"
+                    class="rounded-md border border-gray-300 dark:border-gray-600 px-3 py-1.5 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800"
+                >Previous</a>
+                {% endif %}
+                {% if page < total_pages %}
+                <a
+                    href="/audit-log?page={{ page + 1 }}{% if filter_qs %}&{{ filter_qs }}{% endif %}"
+                    class="rounded-md border border-gray-300 dark:border-gray-600 px-3 py-1.5 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800"
+                >Next</a>
+                {% endif %}
+            </div>
+        </nav>
+        {% endif %}
+
+    </div>
+</div>
+{% endblock %}

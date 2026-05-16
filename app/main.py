@@ -25,12 +25,14 @@ from app.auth.permissions import NotAuthenticatedException
 from app.auth.seed import seed_operator
 from app.config.loader import ConfigLoadError, load_all_configs
 from app.settings import Settings
+from app.web.audit import router as web_audit_router
 from app.web.auth import router as web_auth_router
 from app.web.criteria import router as web_criteria_router
 from app.web.dashboard import router as web_dashboard_router
 from app.web.exports import router as web_exports_router
 from app.web.jobs import router as web_jobs_router
 from app.web.records import router as web_records_router
+from app.web.settings_page import router as web_settings_router
 
 _env = os.getenv("ENVIRONMENT", "local")
 
@@ -109,10 +111,12 @@ async def internal_error_handler(request: Request, exc: Exception) -> JSONRespon
 
 app.include_router(web_auth_router)
 app.include_router(web_dashboard_router)
+app.include_router(web_audit_router)
 app.include_router(web_criteria_router)
 app.include_router(web_exports_router)
 app.include_router(web_jobs_router)
 app.include_router(web_records_router)
+app.include_router(web_settings_router)
 app.include_router(api_auth_router)
 app.include_router(api_connectors_router)
 app.include_router(api_criteria_router)

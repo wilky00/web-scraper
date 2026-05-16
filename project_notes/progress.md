@@ -263,21 +263,32 @@ Deferred: Integration tests (require Docker DB) → CI only
 
 ## Phase 8 — Exports + Audit Log UI + Dashboard
 
-### Sprint 8.1 — Export + Raw HTML Upload
-- [ ] `app/services/__init__.py` — package init
-- [ ] `app/services/storage.py` — S3/MinIO boto3 wrapper (upload_bytes, download_bytes, generate_export_key, generate_html_key)
-- [ ] `app/jobs/export_task.py` — RQ task: query → CSV/XLSX → upload → update Export status → audit log
-- [ ] `app/api/exports.py` — POST /api/exports (create), GET /api/exports/{id} (JSON status)
-- [ ] `app/web/exports.py` — GET /exports, GET /exports/{id}/status (HTMX partial), GET /exports/{id}/download (proxy stream)
-- [ ] `app/templates/exports/list.html` — export trigger form + history table with HTMX polling
-- [ ] `app/templates/exports/_status.html` — HTMX status badge fragment (pending→processing→ready+link)
-- [ ] `app/worker/persist.py` — wire raw HTML upload via storage service; graceful no-op if S3 not configured
-- [ ] `app/templates/records/list.html` — add Export button posting current filter params
-- [ ] `app/main.py` — register api_exports_router + web_exports_router
-- [ ] `app/templates/base.html` — add Exports nav link
-- [ ] `tests/unit/test_storage.py` — upload/download/key-gen with mocked boto3
-- [ ] `tests/unit/test_export_task.py` — CSV/XLSX generation, status transitions, audit log, error path
-- [ ] `tests/api/test_exports_api.py` — create, status, download proxy, auth enforcement
+### Sprint 8.1 — Export + Raw HTML Upload — COMPLETE (verified green 2026-05-16, 594/594 tests, ruff+mypy clean)
+- [x] `app/services/__init__.py` — package init
+- [x] `app/services/storage.py` — S3/MinIO boto3 wrapper (upload_bytes, download_bytes, generate_export_key, generate_html_key)
+- [x] `app/jobs/export_task.py` — RQ task: query → CSV/XLSX → upload → update Export status → audit log
+- [x] `app/api/exports.py` — POST /api/exports (create), GET /api/exports/{id} (JSON status)
+- [x] `app/web/exports.py` — GET /exports, GET /exports/{id}/status (HTMX partial), GET /exports/{id}/download (proxy stream)
+- [x] `app/templates/exports/list.html` — export trigger form + history table with HTMX polling
+- [x] `app/templates/exports/_status.html` — HTMX status badge fragment (pending→processing→ready+link)
+- [x] `app/worker/persist.py` — wire raw HTML upload via storage service; graceful no-op if S3 not configured
+- [x] `app/templates/records/list.html` — add Export button posting current filter params
+- [x] `app/main.py` — register api_exports_router + web_exports_router
+- [x] `app/templates/base.html` — add Exports nav link
+- [x] `tests/unit/test_storage.py` — upload/download/key-gen with mocked boto3
+- [x] `tests/unit/test_export_task.py` — CSV/XLSX generation, status transitions, audit log, error path
+- [x] `tests/api/test_exports_api.py` — create, status, download proxy, auth enforcement
+
+### Sprint 8.2 — Audit Log UI + Dashboard + Settings
+- [ ] `app/web/audit.py` — GET /audit-log with action/resource_type/user_id/date_from/date_to filters, 50/page
+- [ ] `app/templates/audit/list.html` — filter bar + table + pagination
+- [ ] `app/web/settings_page.py` — GET /settings, _redact() config, YAML code block
+- [ ] `app/templates/settings.html` — read-only YAML display
+- [ ] `app/web/dashboard.py` — real data: record counts by status + recent 5 jobs
+- [ ] `app/templates/dashboard.html` — job cards, count badges, quick-link buttons
+- [ ] `app/main.py` — register web_audit_router + web_settings_router
+- [ ] `app/templates/base.html` — add Audit Log + Settings nav links
+- [ ] `tests/api/test_audit_page.py` — auth, filter by action, filter by date, pagination
 
 ## Phase 4 COMPLETE — 2026-05-15
 - 298/298 tests green (291 unit + 7 Playwright integration)

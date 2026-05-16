@@ -1,0 +1,23 @@
+{% extends "base.html" %}
+{% block title %}Settings — Web Scraper{% endblock %}
+{% block content %}
+<div class="p-8">
+    <div class="mx-auto max-w-4xl">
+
+        <h1 class="text-2xl font-semibold tracking-tight text-gray-900 dark:text-gray-100 mb-2">Settings</h1>
+        <p class="text-sm text-gray-500 dark:text-gray-400 mb-8">Active runtime configuration. Secret values are redacted.</p>
+
+        {% if config_sections %}
+            {% for section_name, yaml_text in config_sections.items() %}
+            <section class="mb-8">
+                <h2 class="text-base font-semibold text-gray-800 dark:text-gray-200 mb-3 capitalize">{{ section_name }}</h2>
+                <pre class="overflow-x-auto rounded-lg bg-gray-900 dark:bg-gray-950 border border-gray-700 dark:border-gray-800 p-4 text-xs text-green-300 dark:text-green-400 leading-relaxed"><code>{{ yaml_text }}</code></pre>
+            </section>
+            {% endfor %}
+        {% else %}
+            <p class="text-gray-400 dark:text-gray-500">No configuration loaded.</p>
+        {% endif %}
+
+    </div>
+</div>
+{% endblock %}
