@@ -279,16 +279,16 @@ Deferred: Integration tests (require Docker DB) → CI only
 - [x] `tests/unit/test_export_task.py` — CSV/XLSX generation, status transitions, audit log, error path
 - [x] `tests/api/test_exports_api.py` — create, status, download proxy, auth enforcement
 
-### Sprint 8.2 — Audit Log UI + Dashboard + Settings
-- [ ] `app/web/audit.py` — GET /audit-log with action/resource_type/user_id/date_from/date_to filters, 50/page
-- [ ] `app/templates/audit/list.html` — filter bar + table + pagination
-- [ ] `app/web/settings_page.py` — GET /settings, _redact() config, YAML code block
-- [ ] `app/templates/settings.html` — read-only YAML display
-- [ ] `app/web/dashboard.py` — real data: record counts by status + recent 5 jobs
-- [ ] `app/templates/dashboard.html` — job cards, count badges, quick-link buttons
-- [ ] `app/main.py` — register web_audit_router + web_settings_router
-- [ ] `app/templates/base.html` — add Audit Log + Settings nav links
-- [ ] `tests/api/test_audit_page.py` — auth, filter by action, filter by date, pagination
+### Sprint 8.2 — Audit Log UI + Dashboard + Settings — COMPLETE (verified green 2026-05-16, 601/601 tests, ruff+mypy clean)
+- [x] `app/web/audit.py` — GET /audit-log with action/resource_type/user_id/date_from/date_to filters, 50/page
+- [x] `app/templates/audit/list.html` — filter bar + table + pagination
+- [x] `app/web/settings_page.py` — GET /settings, _redact() config, YAML code block
+- [x] `app/templates/settings.html` — read-only YAML display
+- [x] `app/web/dashboard.py` — real data: record counts by status + recent 5 jobs
+- [x] `app/templates/dashboard.html` — job cards, count badges, quick-link buttons
+- [x] `app/main.py` — register web_audit_router + web_settings_router
+- [x] `app/templates/base.html` — add Audit Log + Settings nav links
+- [x] `tests/api/test_audit_page.py` — auth, filter by action, filter by date, pagination
 
 ## Phase 4 COMPLETE — 2026-05-15
 - 298/298 tests green (291 unit + 7 Playwright integration)

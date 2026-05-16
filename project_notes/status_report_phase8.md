@@ -32,6 +32,33 @@
 ### Test results
 594 passed, 0 failed, 24 warnings — 5.77s
 
+---
+
+## Sprint 8.2 — Audit Log UI + Dashboard + Settings — COMPLETE 2026-05-16
+
+### What was built
+
+**New files:**
+- `app/web/audit.py` — `GET /audit-log`; 5 filter params (action, resource_type, user_id, date_from, date_to); 50/page; resolves user emails in one batched query; invalid filter values silently ignored
+- `app/templates/audit/list.html` — filter bar with Clear link, color-coded action badges, resource ID truncation, pagination controls with preserved filter query string
+- `app/web/settings_page.py` — `GET /settings`; `_redact()` recursively masks dict values whose key name contains `key`, `secret`, `password`, `token`, or `credential`; renders each config section as YAML
+- `app/templates/settings.html` — dark-theme code block per config section
+- `tests/api/test_audit_page.py` — 7 tests: 200 auth, 303 unauthenticated, filter by action, filter by date_from, invalid date ignored, pagination page 2, entry count display
+
+**Modified files:**
+- `app/web/dashboard.py` — replaced stub with real queries: `GROUP BY status` record counts + recent 5 jobs with joined connector and criteria names
+- `app/templates/dashboard.html` — status count badges, job table with status badges, quick-link buttons (New Job, Browse Records, Manage Criteria), empty states
+- `app/main.py` — registered `web_audit_router` + `web_settings_router`
+- `app/templates/base.html` — Audit Log + Settings nav links
+
+### Key decisions
+- `_redact()` is a recursive pure function — never reads from `Settings`, only scans the config YAML structure; no risk of accidentally exposing env secrets
+- Dashboard `GROUP BY status` query returns only statuses that exist — template uses `record_counts.items()` loop + a "Total" card computed in Python to avoid N+1 queries
+- Audit log count uses a lightweight `select(RecordAuditLog.id)` subquery rather than `COUNT(*)` to keep it compatible with the existing filter-building pattern
+
+### Test results
+601 passed, 0 failed, 24 warnings — 5.97s
+
 ### Open issues / follow-ups
 - `app/templates/exports/` is force-added due to broad `exports/` gitignore pattern — flag for Sprint 8.2 or pre-deploy cleanup
 - Accessibility scan for Phase 8 UI deferred to pre-deploy hardening (no axe-core tooling yet)
