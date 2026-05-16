@@ -1,0 +1,8 @@
+{
+  "extraction.email": "bad@lowrated.com",
+  "extraction.phone": "6155550199",
+  "extraction.website": "https://lowrated.com",
+  "extraction.name": "Low Rated Place",
+  "source.rating": 1.5,
+  "crawl.status_code": 200
+}

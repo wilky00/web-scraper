@@ -1,0 +1,7 @@
+{
+  "extraction.phone": "6155550101",
+  "extraction.website": "https://example.com",
+  "extraction.name": "No Email Bakery",
+  "source.rating": 4.5,
+  "crawl.status_code": 200
+}

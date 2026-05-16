@@ -1,0 +1,13 @@
+{
+  "extraction.email": "hello@example.com",
+  "extraction.phone": "6155550101",
+  "extraction.website": "https://example.com",
+  "extraction.name": "Example Bakery",
+  "extraction.address": "123 Main St, Nashville, TN",
+  "source.rating": 4.5,
+  "source.review_count": 42,
+  "crawl.status_code": 200,
+  "crawl.page_count": 5,
+  "html.word_count": 800,
+  "links.count": 12
+}

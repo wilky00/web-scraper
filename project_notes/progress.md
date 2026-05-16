@@ -162,6 +162,18 @@
   - NOTE: `_json_ld.py` is a private shared utility (leading underscore) used by both name.py and address.py
   - NOTE: Phone extractor normalizes to 10-digit string (strips country code "1" if present)
 
+### Sprint 5.2 — Scoring Engine — COMPLETE (verified green 2026-05-15, 442/442 tests, ruff+mypy clean)
+- [x] `app/scoring/__init__.py` — package init, exports public symbols
+- [x] `app/scoring/models.py` — `RuleResult` + `ScoringResult` dataclasses
+- [x] `app/scoring/operators.py` — `evaluate_operator(op, metric_val, rule_val) -> bool` — all 12 operators
+- [x] `app/scoring/engine.py` — `ScoringEngine` with `score(metrics, criteria) -> ScoringResult`
+- [x] `tests/fixtures/scoring/` — 4 fixture metric JSON files
+- [x] `tests/unit/test_scoring_operators.py` — 64 tests (all 12 operators + edge cases)
+- [x] `tests/unit/test_scoring_engine.py` — 18 tests (exclude, must-have, should-have, weighted, scoring disabled, minimum score)
+  - NOTE: `match_score = (earned_weight / total_weight) * 100.0` — both should_have and weighted_rules contribute
+  - NOTE: Evaluation order is deterministic: exclude → must_have → scoring
+  - NOTE: `Operator.in_` is the Python alias for YAML "in" (reserved keyword)
+
 ## Phase 4 COMPLETE — 2026-05-15
 - 298/298 tests green (291 unit + 7 Playwright integration)
 - ruff clean, mypy strict clean
