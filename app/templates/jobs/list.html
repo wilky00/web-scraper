@@ -35,7 +35,7 @@
                     {% for job in jobs %}
                     <tr class="hover:bg-gray-50 dark:hover:bg-gray-700/30 transition-colors">
                         <td class="px-6 py-4">
-                            <span class="font-mono text-sm text-gray-700 dark:text-gray-300">{{ job.id_short }}…</span>
+                            <a href="/jobs/{{ job.id }}" class="font-mono text-sm text-blue-600 dark:text-blue-400 hover:underline">{{ job.id_short }}…</a>
                         </td>
                         <td class="px-6 py-4">
                             {% if job.status == "completed" %}

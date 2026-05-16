@@ -100,6 +100,7 @@ def _make_session(job: CrawlJob | None = None) -> AsyncMock:
 
 # ── _build_record tests ───────────────────────────────────────────────────────
 
+
 def test_build_record_connector_only() -> None:
     job_id = uuid.uuid4()
     fields: dict[str, str | None] = {
@@ -156,6 +157,7 @@ def test_build_record_extraction_overrides_connector() -> None:
 
 # ── _build_metrics tests ──────────────────────────────────────────────────────
 
+
 def test_build_metrics_connector_only() -> None:
     fields: dict[str, str | None] = {
         "name": "Acme",
@@ -193,6 +195,7 @@ def test_build_metrics_extraction_overrides_connector() -> None:
 
 def test_build_metrics_fetch_result_adds_crawl_keys() -> None:
     from app.worker.fetcher import FetchResult
+
     fetch = FetchResult(
         url="https://a.com",
         canonical_url="https://a.com",
@@ -208,14 +211,20 @@ def test_build_metrics_fetch_result_adds_crawl_keys() -> None:
 
 # ── _add_sources tests ────────────────────────────────────────────────────────
 
+
 def test_add_sources_connector_only(tmp_path: Any) -> None:
     session = MagicMock()
     session.add = MagicMock()
     record = BusinessRecord(job_id=uuid.uuid4())
     record.id = uuid.uuid4()
     fields: dict[str, str | None] = {
-        "name": "Acme", "website": "https://acme.com", "email": None,
-        "phone": None, "address": None, "location_city": None, "location_state": None,
+        "name": "Acme",
+        "website": "https://acme.com",
+        "email": None,
+        "phone": None,
+        "address": None,
+        "location_city": None,
+        "location_state": None,
     }
     _add_sources(session, record, fields, None, "fixture")
     added = [call.args[0] for call in session.add.call_args_list]
@@ -248,6 +257,7 @@ def test_add_sources_extraction_sources_added() -> None:
 
 # ── _orm_to_record_data tests ─────────────────────────────────────────────────
 
+
 def test_orm_to_record_data() -> None:
     rec = BusinessRecord()
     rec.id = uuid.uuid4()
@@ -266,6 +276,7 @@ def test_orm_to_record_data() -> None:
 
 
 # ── run_job tests ─────────────────────────────────────────────────────────────
+
 
 @pytest.mark.asyncio
 async def test_run_job_happy_path_no_fetcher() -> None:
@@ -366,3 +377,89 @@ async def test_run_job_multiple_records_stored() -> None:
     assert len(business_records) == 3
     names = {r.name for r in business_records}
     assert names == {"Alpha", "Beta", "Gamma"}
+
+
+@pytest.mark.asyncio
+async def test_run_job_cancel_requested_transitions_to_cancelled() -> None:
+    """run_job transitions to 'cancelled' when cancel_requested is detected after a record."""
+    job_id = uuid.uuid4()
+    job = _make_job(job_id)
+    session = _make_session(job)
+
+    connector = _FakeConnector(
+        [
+            {"name": "Alpha", "website": "https://alpha.com"},
+            {"name": "Beta", "website": "https://beta.com"},
+        ]
+    )
+    criteria = _minimal_criteria()
+
+    added: list[Any] = []
+    session.add.side_effect = lambda obj: added.append(obj)
+
+    async def fake_flush() -> None:
+        for obj in added:
+            if isinstance(obj, BusinessRecord) and obj.id is None:
+                obj.id = uuid.uuid4()
+
+    session.flush.side_effect = fake_flush
+
+    # Simulate: first refresh after a record commit sees cancel_requested
+    refresh_count = [0]
+
+    async def fake_refresh(obj: Any) -> None:
+        refresh_count[0] += 1
+        if isinstance(obj, type(job)) and refresh_count[0] >= 1:
+            obj.status = "cancel_requested"
+
+    session.refresh = AsyncMock(side_effect=fake_refresh)
+
+    await run_job(job_id, session, connector=connector, criteria=criteria)
+
+    assert job.status == "cancelled"
+    # Only the first record should be stored (cancel fires after first refresh)
+    business_records = [a for a in added if isinstance(a, BusinessRecord)]
+    assert len(business_records) == 1
+    assert business_records[0].name == "Alpha"
+
+
+@pytest.mark.asyncio
+async def test_run_job_paused_stops_gracefully() -> None:
+    """run_job exits gracefully and leaves status as 'paused' when paused externally."""
+    job_id = uuid.uuid4()
+    job = _make_job(job_id)
+    session = _make_session(job)
+
+    connector = _FakeConnector(
+        [
+            {"name": "Alpha", "website": "https://alpha.com"},
+            {"name": "Beta", "website": "https://beta.com"},
+        ]
+    )
+    criteria = _minimal_criteria()
+
+    added: list[Any] = []
+    session.add.side_effect = lambda obj: added.append(obj)
+
+    async def fake_flush() -> None:
+        for obj in added:
+            if isinstance(obj, BusinessRecord) and obj.id is None:
+                obj.id = uuid.uuid4()
+
+    session.flush.side_effect = fake_flush
+
+    refresh_count = [0]
+
+    async def fake_refresh(obj: Any) -> None:
+        refresh_count[0] += 1
+        if isinstance(obj, type(job)) and refresh_count[0] >= 1:
+            obj.status = "paused"
+
+    session.refresh = AsyncMock(side_effect=fake_refresh)
+
+    await run_job(job_id, session, connector=connector, criteria=criteria)
+
+    assert job.status == "paused"
+    business_records = [a for a in added if isinstance(a, BusinessRecord)]
+    assert len(business_records) == 1  # Only one record before pause
+    assert business_records[0].name == "Alpha"

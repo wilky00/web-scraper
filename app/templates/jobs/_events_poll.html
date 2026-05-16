@@ -1,0 +1,33 @@
+<div id="events-poll"
+     {% if job.status in ["running", "queued", "cancel_requested"] %}
+     hx-get="/jobs/{{ job.id }}/events"
+     hx-trigger="every 2s"
+     hx-swap="outerHTML"
+     {% endif %}
+>
+    <h2 class="text-base font-semibold text-gray-900 dark:text-gray-100 mb-3">Event Log</h2>
+    {% if not events %}
+    <p class="text-sm text-gray-500 dark:text-gray-400">No events yet.</p>
+    {% else %}
+    <div class="overflow-hidden rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 shadow-sm">
+        <table class="min-w-full divide-y divide-gray-200 dark:divide-gray-700 text-sm">
+            <thead class="bg-gray-50 dark:bg-gray-900/50">
+                <tr>
+                    <th scope="col" class="px-4 py-2 text-left text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400 w-24">Time</th>
+                    <th scope="col" class="px-4 py-2 text-left text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400 w-40">Event</th>
+                    <th scope="col" class="px-4 py-2 text-left text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">Message</th>
+                </tr>
+            </thead>
+            <tbody class="divide-y divide-gray-100 dark:divide-gray-700/50">
+                {% for event in events %}
+                <tr>
+                    <td class="px-4 py-2 font-mono text-xs text-gray-500 dark:text-gray-400 whitespace-nowrap">{{ event.created_at }}</td>
+                    <td class="px-4 py-2 font-mono text-xs text-gray-700 dark:text-gray-300 whitespace-nowrap">{{ event.event_type }}</td>
+                    <td class="px-4 py-2 text-xs text-gray-600 dark:text-gray-400">{{ event.message }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% endif %}
+</div>

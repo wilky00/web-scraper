@@ -1,24 +1,27 @@
-# ABOUTME: Jobs API endpoints — create and enqueue crawl jobs, retrieve job status.
-# ABOUTME: POST /api/jobs creates a CrawlJob row and enqueues run_crawl_job via RQ.
+# ABOUTME: Jobs API endpoints — create, enqueue, and control crawl jobs.
+# ABOUTME: Includes cancel/pause/resume endpoints used by the job detail UI via HTMX.
 from __future__ import annotations
 
 import asyncio
+import secrets
 import uuid
 from typing import Any
 
 import redis
 import structlog
-from fastapi import APIRouter, Depends, Request
-from fastapi.responses import JSONResponse
+from fastapi import APIRouter, Cookie, Depends, Form, Request
+from fastapi.responses import JSONResponse, Response
 from rq import Queue
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.auth.permissions import require_operator
+from app.auth.session import SESSION_COOKIE, get_session
 from app.models.connector import Connector
 from app.models.criteria import CriteriaVersion
 from app.models.job import CrawlJob
 from app.models.user import User
 from app.settings import Settings
+from app.worker.persist import log_crawl_event
 
 logger = structlog.get_logger(__name__)
 
@@ -123,3 +126,127 @@ async def get_job(
                 "criteria_version_id": str(job.criteria_version_id),
             }
         )
+
+
+# ── Job controls (pause / resume / cancel) ───────────────────────────────────
+
+
+async def _check_csrf(
+    request: Request,
+    form_csrf: str,
+    session_cookie: str | None,
+) -> bool:
+    """Return True if the form CSRF token matches the session CSRF token."""
+    if not session_cookie:
+        return False
+    settings: Settings = request.app.state.settings
+    session_data = await get_session(request.app.state.redis, session_cookie, settings.secret_key)
+    if not session_data:
+        return False
+    expected = session_data.get("csrf_token", "")
+    return bool(expected) and secrets.compare_digest(form_csrf, expected)
+
+
+@router.post("/api/jobs/{job_id}/cancel")
+async def cancel_job(
+    job_id: str,
+    request: Request,
+    csrf_token: str = Form(default=""),
+    session_cookie: str | None = Cookie(default=None, alias=SESSION_COOKIE),
+    user: User = Depends(require_operator),
+) -> Response:
+    """Request cancellation of a queued, running, or paused job."""
+    if not await _check_csrf(request, csrf_token, session_cookie):
+        return JSONResponse({"error": "Invalid CSRF token"}, status_code=403)
+
+    try:
+        parsed_id = uuid.UUID(job_id)
+    except ValueError:
+        return JSONResponse({"error": "Invalid job ID"}, status_code=422)
+
+    async with AsyncSession(request.app.state.engine) as db:
+        job: CrawlJob | None = await db.get(CrawlJob, parsed_id)
+        if job is None:
+            return JSONResponse({"error": "Job not found"}, status_code=404)
+        if job.status not in ("queued", "running", "paused"):
+            return JSONResponse(
+                {"error": f"Cannot cancel a job with status '{job.status}'"}, status_code=409
+            )
+        job.status = "cancel_requested"
+        await log_crawl_event(db, parsed_id, "cancel_requested", "Cancellation requested by user")
+        await db.commit()
+
+    logger.info("job.cancel_requested", job_id=job_id, user_id=str(user.id))
+    return Response(status_code=200, headers={"HX-Redirect": f"/jobs/{job_id}"})
+
+
+@router.post("/api/jobs/{job_id}/pause")
+async def pause_job(
+    job_id: str,
+    request: Request,
+    csrf_token: str = Form(default=""),
+    session_cookie: str | None = Cookie(default=None, alias=SESSION_COOKIE),
+    user: User = Depends(require_operator),
+) -> Response:
+    """Request that a running job pause after its current record."""
+    if not await _check_csrf(request, csrf_token, session_cookie):
+        return JSONResponse({"error": "Invalid CSRF token"}, status_code=403)
+
+    try:
+        parsed_id = uuid.UUID(job_id)
+    except ValueError:
+        return JSONResponse({"error": "Invalid job ID"}, status_code=422)
+
+    async with AsyncSession(request.app.state.engine) as db:
+        job: CrawlJob | None = await db.get(CrawlJob, parsed_id)
+        if job is None:
+            return JSONResponse({"error": "Job not found"}, status_code=404)
+        if job.status != "running":
+            return JSONResponse(
+                {"error": f"Cannot pause a job with status '{job.status}'"}, status_code=409
+            )
+        job.status = "paused"
+        await log_crawl_event(db, parsed_id, "pause_requested", "Pause requested by user")
+        await db.commit()
+
+    logger.info("job.pause_requested", job_id=job_id, user_id=str(user.id))
+    return Response(status_code=200, headers={"HX-Redirect": f"/jobs/{job_id}"})
+
+
+@router.post("/api/jobs/{job_id}/resume")
+async def resume_job(
+    job_id: str,
+    request: Request,
+    csrf_token: str = Form(default=""),
+    session_cookie: str | None = Cookie(default=None, alias=SESSION_COOKIE),
+    user: User = Depends(require_operator),
+) -> Response:
+    """Re-enqueue a paused job to run from the beginning."""
+    if not await _check_csrf(request, csrf_token, session_cookie):
+        return JSONResponse({"error": "Invalid CSRF token"}, status_code=403)
+
+    try:
+        parsed_id = uuid.UUID(job_id)
+    except ValueError:
+        return JSONResponse({"error": "Invalid job ID"}, status_code=422)
+
+    async with AsyncSession(request.app.state.engine) as db:
+        job: CrawlJob | None = await db.get(CrawlJob, parsed_id)
+        if job is None:
+            return JSONResponse({"error": "Job not found"}, status_code=404)
+        if job.status != "paused":
+            return JSONResponse(
+                {"error": f"Cannot resume a job with status '{job.status}'"}, status_code=409
+            )
+        job.status = "queued"
+        await log_crawl_event(db, parsed_id, "job_resumed", "Job resumed by user")
+        await db.commit()
+
+    settings: Settings = request.app.state.settings
+    try:
+        rq_job_id = await asyncio.to_thread(_enqueue_rq, settings.redis_url, parsed_id)
+        logger.info("job.resumed", job_id=job_id, rq_job_id=rq_job_id, user_id=str(user.id))
+    except Exception as exc:
+        logger.error("job.resume_enqueue_failed", job_id=job_id, error=str(exc))
+
+    return Response(status_code=200, headers={"HX-Redirect": f"/jobs/{job_id}"})

@@ -1,7 +1,8 @@
-# ABOUTME: Web routes for the job list page.
-# ABOUTME: Requires auth; shows all crawl jobs ordered newest-first with status badges.
+# ABOUTME: Web routes for job list and detail pages.
+# ABOUTME: Includes HTMX partial endpoint for live event log polling on the detail page.
 from __future__ import annotations
 
+import uuid
 from pathlib import Path
 
 import structlog
@@ -15,7 +16,7 @@ from app.auth.permissions import require_operator
 from app.auth.session import SESSION_COOKIE, get_session
 from app.models.connector import Connector
 from app.models.criteria import CriteriaGroup, CriteriaVersion
-from app.models.job import CrawlJob
+from app.models.job import CrawlJob, CrawlJobEvent
 from app.models.record import BusinessRecord
 from app.models.user import User
 from app.settings import Settings
@@ -45,18 +46,14 @@ async def jobs_list(
     csrf_token = await _get_csrf(request, session_cookie)
 
     async with AsyncSession(request.app.state.engine) as db:
-        jobs_result = await db.execute(
-            select(CrawlJob).order_by(CrawlJob.created_at.desc())
-        )
+        jobs_result = await db.execute(select(CrawlJob).order_by(CrawlJob.created_at.desc()))
         jobs = list(jobs_result.scalars().all())
 
         # Load connector names
         connector_ids = {j.connector_id for j in jobs}
         connector_names: dict[str, str] = {}
         if connector_ids:
-            conn_result = await db.execute(
-                select(Connector).where(Connector.id.in_(connector_ids))
-            )
+            conn_result = await db.execute(select(Connector).where(Connector.id.in_(connector_ids)))
             for c in conn_result.scalars():
                 connector_names[str(c.id)] = c.name
 
@@ -101,4 +98,118 @@ async def jobs_list(
         request,
         "jobs/list.html",
         {"jobs": jobs_data, "csrf_token": csrf_token, "user": user},
+    )
+
+
+# ── Job detail ────────────────────────────────────────────────────────────────
+
+
+async def _load_job_detail(
+    db: AsyncSession, parsed_id: uuid.UUID
+) -> tuple[CrawlJob, dict[str, object], list[dict[str, object]]] | None:
+    """Load job + related data for the detail page. Returns None if job not found."""
+    job: CrawlJob | None = await db.get(CrawlJob, parsed_id)
+    if job is None:
+        return None
+
+    connector_names: dict[str, str] = {}
+    conn_result = await db.execute(select(Connector).where(Connector.id == job.connector_id))
+    conn = conn_result.scalar_one_or_none()
+    if conn:
+        connector_names[str(job.connector_id)] = conn.name
+
+    criteria_names: dict[str, str] = {}
+    ver_result = await db.execute(
+        select(CriteriaVersion).where(CriteriaVersion.id == job.criteria_version_id)
+    )
+    ver = ver_result.scalar_one_or_none()
+    if ver:
+        group_result = await db.execute(
+            select(CriteriaGroup).where(CriteriaGroup.id == ver.group_id)
+        )
+        grp = group_result.scalar_one_or_none()
+        if grp:
+            criteria_names[str(job.criteria_version_id)] = grp.display_name
+
+    counts_result = await db.execute(select(func.count()).where(BusinessRecord.job_id == parsed_id))
+    record_count: int = counts_result.scalar() or 0
+
+    events_result = await db.execute(
+        select(CrawlJobEvent)
+        .where(CrawlJobEvent.job_id == parsed_id)
+        .order_by(CrawlJobEvent.created_at.asc())
+    )
+    raw_events = list(events_result.scalars())
+
+    job_data: dict[str, object] = {
+        "id": str(job.id),
+        "id_short": str(job.id)[:8],
+        "status": job.status,
+        "connector_name": connector_names.get(str(job.connector_id), "—"),
+        "criteria_name": criteria_names.get(str(job.criteria_version_id), "—"),
+        "record_count": record_count,
+        "created_at": job.created_at.strftime("%Y-%m-%d %H:%M") if job.created_at else "—",
+    }
+    events_data: list[dict[str, object]] = [
+        {
+            "event_type": e.event_type,
+            "message": e.message,
+            "created_at": e.created_at.strftime("%H:%M:%S") if e.created_at else "—",
+        }
+        for e in raw_events
+    ]
+    return job, job_data, events_data
+
+
+@router.get("/jobs/{job_id}", response_class=HTMLResponse)
+async def job_detail(
+    job_id: str,
+    request: Request,
+    user: User = Depends(require_operator),
+) -> Response:
+    try:
+        parsed_id = uuid.UUID(job_id)
+    except ValueError:
+        return HTMLResponse("Job not found", status_code=404)
+
+    session_cookie = request.cookies.get(SESSION_COOKIE)
+    csrf_token = await _get_csrf(request, session_cookie)
+
+    async with AsyncSession(request.app.state.engine) as db:
+        result = await _load_job_detail(db, parsed_id)
+
+    if result is None:
+        return HTMLResponse("Job not found", status_code=404)
+
+    _, job_data, events_data = result
+    return templates.TemplateResponse(
+        request,
+        "jobs/detail.html",
+        {"job": job_data, "events": events_data, "csrf_token": csrf_token, "user": user},
+    )
+
+
+@router.get("/jobs/{job_id}/events", response_class=HTMLResponse)
+async def job_events_partial(
+    job_id: str,
+    request: Request,
+    user: User = Depends(require_operator),
+) -> Response:
+    """HTMX partial — returns the events polling container for live polling."""
+    try:
+        parsed_id = uuid.UUID(job_id)
+    except ValueError:
+        return HTMLResponse("", status_code=404)
+
+    async with AsyncSession(request.app.state.engine) as db:
+        result = await _load_job_detail(db, parsed_id)
+
+    if result is None:
+        return HTMLResponse("", status_code=404)
+
+    _, job_data, events_data = result
+    return templates.TemplateResponse(
+        request,
+        "jobs/_events_poll.html",
+        {"job": job_data, "events": events_data},
     )

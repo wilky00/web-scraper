@@ -127,6 +127,18 @@ async def run_job(
             )
             await session.commit()
 
+            # Check between records for externally-requested pause or cancel.
+            await session.refresh(job)
+            if job.status == "cancel_requested":
+                job.status = "cancelled"
+                await log_crawl_event(session, job_id, "job_cancelled", "Job cancelled by user")
+                await session.commit()
+                return
+            elif job.status == "paused":
+                await log_crawl_event(session, job_id, "job_paused", "Job paused by user")
+                await session.commit()
+                return
+
         await log_crawl_event(
             session,
             job_id,
@@ -157,6 +169,7 @@ async def run_job(
 
 
 # ── Crawl helper ──────────────────────────────────────────────────────────────
+
 
 async def _try_crawl(
     session: AsyncSession,
@@ -193,9 +206,7 @@ async def _try_crawl(
         await log_crawl_event(session, job_id, "crawl_error", f"Fetch failed for {url}: {exc}")
         return None
 
-    blocked_content_types: list[str] = (
-        crawl_config.blocked_content_types if crawl_config else []
-    )
+    blocked_content_types: list[str] = crawl_config.blocked_content_types if crawl_config else []
     if is_content_type_blocked(fetch_result.content_type, blocked_content_types):
         log.info("orchestrator.crawl_skipped.content_type", url=url)
         await log_crawl_event(session, job_id, "crawl_skipped", f"Blocked content type: {url}")
@@ -217,6 +228,7 @@ async def _try_crawl(
 
 # ── Record builders ───────────────────────────────────────────────────────────
 
+
 def _build_record(
     job_id: uuid.UUID,
     connector_fields: dict[str, str | None],
@@ -227,25 +239,20 @@ def _build_record(
     Extraction takes priority for fields it found; connector provides the fallback.
     """
     name = (
-        (extraction.name.value if extraction and extraction.name else None)
-        or connector_fields.get("name")
-    )
+        extraction.name.value if extraction and extraction.name else None
+    ) or connector_fields.get("name")
     website = (
-        (extraction.website.value if extraction and extraction.website else None)
-        or connector_fields.get("website")
-    )
+        extraction.website.value if extraction and extraction.website else None
+    ) or connector_fields.get("website")
     email = (
-        (extraction.emails[0].value if extraction and extraction.emails else None)
-        or connector_fields.get("email")
-    )
+        extraction.emails[0].value if extraction and extraction.emails else None
+    ) or connector_fields.get("email")
     phone = (
-        (extraction.phones[0].value if extraction and extraction.phones else None)
-        or connector_fields.get("phone")
-    )
+        extraction.phones[0].value if extraction and extraction.phones else None
+    ) or connector_fields.get("phone")
     address = (
-        (extraction.address.value if extraction and extraction.address else None)
-        or connector_fields.get("address")
-    )
+        extraction.address.value if extraction and extraction.address else None
+    ) or connector_fields.get("address")
     return BusinessRecord(
         job_id=job_id,
         name=name,
@@ -386,6 +393,7 @@ def _build_metrics(
 
 
 # ── Deduplication ─────────────────────────────────────────────────────────────
+
 
 async def _run_dedup(
     session: AsyncSession,

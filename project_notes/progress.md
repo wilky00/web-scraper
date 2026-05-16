@@ -193,6 +193,19 @@
 
 ## Phase 6 — Job Queue & Lifecycle
 
+### Sprint 6.2 — Job Controls — COMPLETE (verified green 2026-05-16, 498/498 tests, ruff+mypy clean)
+- [x] `app/jobs/orchestrator.py` — poll job status after each record commit; cancel_requested → cancelled; paused → graceful exit
+- [x] `app/api/jobs.py` — `POST /api/jobs/{id}/cancel`, `/pause`, `/resume` with CSRF validation
+- [x] `app/web/jobs.py` — `GET /jobs/{id}` detail page, `GET /jobs/{id}/events` HTMX partial
+- [x] `app/templates/jobs/detail.html` — job detail page with status badge, metadata grid, control buttons
+- [x] `app/templates/jobs/_events_poll.html` — live event log with HTMX outerHTML polling (stops when terminal)
+- [x] `app/templates/jobs/list.html` — job IDs are now links to detail page
+- [x] `tests/unit/test_job_orchestrator.py` — 2 new tests: cancel_requested → cancelled, paused → graceful stop
+- [x] `tests/integration/test_job_controls.py` — 2 integration tests: cancel preserves records, pause preserves records
+  - NOTE: HTMX polling uses outerHTML swap — response omits hx-trigger when job is terminal, stopping the poll
+  - NOTE: Resume re-enqueues the job from scratch; existing records preserved; dedup catches any new duplicates
+  - NOTE: Integration tests monkeypatch session.commit/refresh to simulate external status changes mid-job
+
 ### Sprint 6.1 — Job Queue Foundation — COMPLETE (verified green 2026-05-16, 496/496 tests, ruff+mypy clean)
 - [x] `app/connectors/base.py` — add `extract_fields()` default method
 - [x] `app/connectors/fixture.py` — implement `extract_fields()` (Google Places field names)
