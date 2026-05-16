@@ -122,3 +122,16 @@
   - NOTE: URL inline fixtures used; no separate `tests/fixtures/urls/` dir needed
   - NOTE: `RobotsCache` fails open (allows all) on 404, non-200, and network errors
   - NOTE: Path blocking uses prefix match for bare patterns, fnmatch for glob patterns
+
+### Sprint 4.2 — Playwright Worker — COMPLETE (verified green 2026-05-15, 298/298 tests, ruff+mypy clean)
+- [x] `app/worker/__init__.py` — package init (Playwright imports permitted here)
+- [x] `app/worker/fetcher.py` — `FetchResult` dataclass + `PageFetcher` async context manager
+- [x] `app/worker/persist.py` — `persist_crawl_page()` and `log_crawl_event()` DB helpers
+- [x] `tests/fixtures/html/simple.html` — minimal static HTML fixture
+- [x] `tests/fixtures/html/with_links.html` — HTML fixture with outbound links
+- [x] `tests/unit/test_fetcher.py` — 24 unit tests with mocked Playwright async API
+- [x] `tests/unit/test_worker_persist.py` — 15 unit tests for DB helpers
+- [x] `tests/integration/test_playwright_crawl.py` — 7 real Playwright integration tests
+  - NOTE: `playwright` added to dev extras so unit tests can import+mock it; browsers not needed for mocked tests
+  - NOTE: `persist_crawl_page()` sets `raw_html_path=None` — MinIO upload deferred to Phase 8
+  - NOTE: Sprint 4.1 helpers (robots, filter, limits) are not wired into `PageFetcher.fetch()` — deferred to Phase 6 job orchestrator
