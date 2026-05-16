@@ -49,3 +49,42 @@ mypy: Success: no issues found in 83 source files
 ### Open issues / follow-ups
 
 None. Sprint 10.2 (Pre-deploy Hardening) is next.
+
+---
+
+## Sprint 10.2 — Pre-deploy Hardening — COMPLETE 2026-05-16
+
+### What was built
+
+**New files (3):**
+- `app/templates/settings/_token_panel.html` — Alpine.js token management panel: status badge (active/inactive), Generate button (`POST /api/auth/token`), Revoke button (`DELETE /api/auth/token`), copy-to-clipboard for plaintext token (shown once after generate)
+- `docs/deployment.md` — step-by-step staging + production deploy guide covering scaffold check, `.env` setup, migrations, Authentik OIDC registration, smoke test checklist, rollback instructions
+- `docs/security-exceptions.md` — pip-audit findings template with process documentation (clean at time of writing)
+
+**Modified files (3):**
+- `app/web/settings_page.py` — added `has_api_token: bool` to template context (reads `user.api_key_hash is not None`)
+- `app/templates/settings.html` — Token Management section with `{% include "settings/_token_panel.html" %}` above YAML config readout
+- `.gitignore` — narrowed `exports/` → `/exports/` (root-anchor); `app/templates/exports/` is now tracked without `--force`; root `/exports/` remains ignored
+
+### Key decisions
+
+- Used Alpine.js for both generate and revoke operations (not HTMX) — `DELETE /api/auth/token` returns 204 with no body, so HTMX `outerHTML` swap would wipe the panel. Alpine.js `fetch()` + `window.location.reload()` on revoke is simpler and reliable.
+- Generate shows plaintext token inline with a copy button (amber warning box) — token is shown exactly once, consistent with existing API contract
+- Revoke uses `confirm()` dialog before proceeding — accidental revoke is costly (scripts break immediately)
+- `.gitignore` root-anchor fix closes the Phase 8 deferred item about `app/templates/exports/` requiring `--force`
+
+### Test results
+
+```
+668 passed, 34 warnings (no new tests — template + doc changes only)
+ruff: All checks passed
+mypy: Success — no issues in 83 source files
+```
+
+### Bugs found and fixed
+
+None.
+
+### Open issues / follow-ups
+
+None. Sprint 10.3 (Staging Deployment) is next.
