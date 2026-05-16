@@ -1,0 +1,24 @@
+[
+  {
+    "id": "ccc00000-0000-0000-0000-000000000001",
+    "name": "River Rock Plumbing",
+    "website": "https://riverrockplumbing.com",
+    "email": "info@riverrock.com",
+    "phone": "615-555-0101",
+    "location_city": "Nashville",
+    "location_state": "TN",
+    "status": "active",
+    "sources": []
+  },
+  {
+    "id": "ccc00000-0000-0000-0000-000000000002",
+    "name": "River Rock Plumbing LLC",
+    "website": "https://rrp-llc.com",
+    "email": "billing@rrp-llc.com",
+    "phone": "6155550101",
+    "location_city": "Brentwood",
+    "location_state": "TN",
+    "status": "active",
+    "sources": []
+  }
+]

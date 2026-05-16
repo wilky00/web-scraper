@@ -43,3 +43,31 @@
 - Extractors produce `ExtractedField` objects; writing them to `record_sources` DB rows is deferred to Phase 6 job orchestrator (Sprint 6.1)
 - Phone regex is US-centric (10-digit NANP format); international numbers ignored for MVP
 - Title separator detection is heuristic; false positives possible on pages with dashes in company names (acceptable for MVP)
+
+## Sprint 5.3 — Deduplication
+**Completed:** 2026-05-15
+
+### What was built
+- `app/dedup/__init__.py` — package init, exports `RecordData`, `SourceData`, `DeduplicationEngine`
+- `app/dedup/normalize.py` — 4 pure functions: `normalize_domain`, `normalize_name`, `normalize_phone`, `normalize_email`
+- `app/dedup/engine.py` — `RecordData` + `SourceData` dataclasses; `DeduplicationEngine` with `find_duplicates()` and `merge_duplicates()`
+- `tests/fixtures/records/same_domain.json`, `same_name_city.json`, `same_phone.json`, `no_duplicates.json`
+- `tests/unit/test_dedup_normalize.py` — 21 normalization tests
+- `tests/unit/test_dedup_engine.py` — 21 engine tests (detection + merge)
+
+### Key decisions
+- **Union-find with path compression** — handles transitive duplicate links (A matches B, B matches C → all three in one group) without quadratic merging
+- **Missing location = wildcard** — if either record lacks city or state, that dimension is not a blocker. A conflict only fires when both sides have a value that differs
+- **Normalization-based "fuzzy" matching** — no edit-distance library; `normalize_name` (lowercase, strip non-alphanumeric, collapse whitespace) handles punctuation and casing differences without new dependencies
+- **Pure dataclasses, no ORM** — `RecordData`/`SourceData` mirror the ORM model fields but are plain Python dataclasses. Phase 6 orchestrator maps ORM → dataclass → dedup → applies DB writes
+- **Merge is in-place mutation** — `merge_duplicates()` mutates the passed `RecordData` list: sets `loser.status = "duplicate"`, `loser.canonical_record_id = winner.id`, transfers all `SourceData` entries to the winner
+
+### Test results
+42 new tests | 484/484 full suite green | ruff clean | mypy strict clean
+
+### Bugs found and fixed
+None.
+
+### Open issues / follow-ups
+- ORM → RecordData mapping and DB write-back deferred to Phase 6 orchestrator
+- `normalize_domain` strips only `www.` — other subdomains (e.g. `shop.example.com`) are not collapsed to root domain (acceptable for MVP)

@@ -1,0 +1,35 @@
+[
+  {
+    "id": "ddd00000-0000-0000-0000-000000000001",
+    "name": "Sunrise Landscaping",
+    "website": "https://sunriselandscaping.com",
+    "email": "hello@sunriselandscaping.com",
+    "phone": "615-100-2001",
+    "location_city": "Franklin",
+    "location_state": "TN",
+    "status": "active",
+    "sources": []
+  },
+  {
+    "id": "ddd00000-0000-0000-0000-000000000002",
+    "name": "Blue Ridge Electric",
+    "website": "https://blueridgeelectric.com",
+    "email": "service@blueridgeelectric.com",
+    "phone": "615-100-2002",
+    "location_city": "Murfreesboro",
+    "location_state": "TN",
+    "status": "active",
+    "sources": []
+  },
+  {
+    "id": "ddd00000-0000-0000-0000-000000000003",
+    "name": "Coastal HVAC",
+    "website": "https://coastalhvac.com",
+    "email": "contact@coastalhvac.com",
+    "phone": "615-100-2003",
+    "location_city": "Smyrna",
+    "location_state": "TN",
+    "status": "active",
+    "sources": []
+  }
+]

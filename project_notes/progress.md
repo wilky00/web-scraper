@@ -174,6 +174,17 @@
   - NOTE: Evaluation order is deterministic: exclude → must_have → scoring
   - NOTE: `Operator.in_` is the Python alias for YAML "in" (reserved keyword)
 
+### Sprint 5.3 — Deduplication — COMPLETE (verified green 2026-05-15, 484/484 tests, ruff+mypy clean)
+- [x] `app/dedup/__init__.py` — package init, exports public symbols
+- [x] `app/dedup/normalize.py` — `normalize_domain()`, `normalize_name()`, `normalize_phone()`, `normalize_email()` pure functions
+- [x] `app/dedup/engine.py` — `DeduplicationEngine` with 3-pass duplicate detection + `merge_duplicates()` mutating merge
+- [x] `tests/fixtures/records/` — JSON fixture files: same domain set, same name+city set, same phone set, no-duplicates set
+- [x] `tests/unit/test_dedup_normalize.py` — normalization function tests
+- [x] `tests/unit/test_dedup_engine.py` — 3-pass detection tests, merge tests (source re-pointer, status/canonical_id set)
+  - NOTE: Union-find with path compression used for transitive dedup grouping (A-B + B-C → one group)
+  - NOTE: Missing city/state on either side is a wildcard — only conflicts when both sides have a value that differs
+  - NOTE: Merge is in-place mutation on RecordData dataclasses; DB writes deferred to Phase 6 orchestrator
+
 ## Phase 4 COMPLETE — 2026-05-15
 - 298/298 tests green (291 unit + 7 Playwright integration)
 - ruff clean, mypy strict clean

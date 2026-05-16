@@ -1,0 +1,24 @@
+[
+  {
+    "id": "bbb00000-0000-0000-0000-000000000001",
+    "name": "Green Valley Roofing",
+    "website": "https://gvr1.com",
+    "email": "contact1@gvr1.com",
+    "phone": "512-100-0001",
+    "location_city": "Austin",
+    "location_state": "TX",
+    "status": "active",
+    "sources": []
+  },
+  {
+    "id": "bbb00000-0000-0000-0000-000000000002",
+    "name": "Green Valley Roofing",
+    "website": "https://gvr2.com",
+    "email": "contact2@gvr2.com",
+    "phone": "512-100-0002",
+    "location_city": "Austin",
+    "location_state": null,
+    "status": "active",
+    "sources": []
+  }
+]
