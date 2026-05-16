@@ -22,3 +22,5 @@ features:
   brave_connector: false
   # Show OpenAPI docs UI (/docs) — disable in production
   api_docs: true
+  # Authentik OIDC SSO — requires AUTHENTIK_CLIENT_ID/SECRET/BASE_URL in .env
+  sso_enabled: false

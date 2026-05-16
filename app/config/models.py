@@ -11,6 +11,7 @@ class FeaturesConfig(BaseModel):
     ai_assist: bool = False
     brave_connector: bool = False
     api_docs: bool = True
+    sso_enabled: bool = False
 
 
 class AppConfig(BaseModel):

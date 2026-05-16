@@ -22,6 +22,8 @@ from app.api.criteria import router as api_criteria_router
 from app.api.exports import router as api_exports_router
 from app.api.jobs import router as api_jobs_router
 from app.api.records import router as api_records_router
+from app.auth.oidc import load_oidc_discovery
+from app.auth.oidc import sso_enabled as _oidc_sso_enabled
 from app.auth.permissions import NotAuthenticatedException
 from app.auth.seed import seed_operator
 from app.config.loader import ConfigLoadError, load_all_configs
@@ -66,6 +68,17 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     await seed_operator(
         app.state.engine, settings.seed_operator_email, settings.seed_operator_password
     )
+
+    app.state.oidc_discovery = None
+    if _oidc_sso_enabled(settings, app.state.config.app):
+        app.state.oidc_discovery = await load_oidc_discovery(settings)
+        if app.state.oidc_discovery is None:
+            logger.warning(
+                "startup.oidc_discovery_failed",
+                hint="SSO enabled but discovery unavailable — SSO button hidden",
+            )
+        else:
+            logger.info("startup.oidc_ready")
 
     logger.info("startup.complete")
     yield

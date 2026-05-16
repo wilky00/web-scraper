@@ -323,6 +323,25 @@ Deferred: Accessibility scan for chat panel UI → pre-deploy hardening
 Deferred: Chat history persistence (lost on page reload) → acceptable for MVP
 Deferred: Streaming responses (SSE) → deferred; full response + loading indicator sufficient for two-user MVP
 
+## Phase 10 — SSO + Pre-deploy Hardening + Staging Deploy
+
+### Sprint 10.1 — Authentik OIDC Integration — COMPLETE (verified green 2026-05-16, 668/668 tests, ruff+mypy clean)
+- [x] `app/auth/oidc.py` — `sso_enabled()`, `load_oidc_discovery()` (soft-fail), state create/verify, `find_or_provision_sso_user()`, `exchange_code_for_tokens()`, `fetch_userinfo()`
+- [x] `tests/unit/test_oidc.py` — 15 tests: state, provisioning (3 cases), discovery soft-fail, sso_enabled (5 cases)
+- [x] `tests/api/test_sso_auth.py` — 10 tests: redirect shape, state stored in Redis, callback success (session + cookie), bad state, SSO disabled → 404, local login still works
+- [x] `app/settings.py` — add `authentik_app_slug: str = "web-scraper"`
+- [x] `app/config/models.py` — add `sso_enabled: bool = False` to `FeaturesConfig`
+- [x] `config/app.yml.example` — add `features.sso_enabled: false`
+- [x] `app/web/auth.py` — add `GET /auth/oidc/login` + `GET /auth/oidc/callback`
+- [x] `app/templates/login.html` — add SSO button (conditional on `sso_enabled`)
+- [x] `.env.example` — document `AUTHENTIK_APP_SLUG`, annotate Authentik fields
+- [x] `app/api/auth.py` — updated `_render_login()` to pass `sso_enabled` context
+- [x] `app/main.py` — OIDC discovery loaded at startup, cached in `app.state.oidc_discovery` (soft-fail)
+- [x] `tests/api/test_auth_api.py` — updated fixture to include `config` + `oidc_discovery` state
+- NOTE: `sso_sub` column and initial migration already existed in Phase 0 scaffold — no new migration needed
+- NOTE: `app/models/user.py` already had `sso_sub` field — no change needed
+- NOTE: `app.state.oidc_discovery = None` when Authentik unreachable at boot → SSO button hidden (soft-fail)
+
 ## Phase 4 COMPLETE — 2026-05-15
 - 298/298 tests green (291 unit + 7 Playwright integration)
 - ruff clean, mypy strict clean

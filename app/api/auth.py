@@ -17,6 +17,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.auth.csrf import generate_form_csrf, verify_form_csrf
 from app.auth.hashing import verify_password
+from app.auth.oidc import sso_enabled as _oidc_sso_enabled
 from app.auth.permissions import require_operator
 from app.auth.rate_limit import check_login_rate_limit
 from app.auth.session import (
@@ -41,11 +42,19 @@ def _render_login(
     request: Request, error: str = "", email_value: str = "", status_code: int = 200
 ) -> Response:
     settings: Settings = request.app.state.settings
+    config = request.app.state.config.app
+    discovery = getattr(request.app.state, "oidc_discovery", None)
+    is_sso = _oidc_sso_enabled(settings, config) and discovery is not None
     form_token, cookie_value = generate_form_csrf(settings.secret_key)
     resp = templates.TemplateResponse(
         request,
         "login.html",
-        {"csrf_token": form_token, "error": error, "email_value": email_value},
+        {
+            "csrf_token": form_token,
+            "error": error,
+            "email_value": email_value,
+            "sso_enabled": is_sso,
+        },
         status_code=status_code,
     )
     resp.set_cookie(

@@ -12,6 +12,8 @@ from httpx import ASGITransport, AsyncClient
 from app.auth.csrf import generate_form_csrf
 from app.auth.hashing import hash_password
 from app.auth.session import SESSION_COOKIE, sign_session_id
+from app.config.loader import AppConfigs
+from app.config.models import AppConfig, FeaturesConfig
 from app.main import app
 from app.models.user import User
 from app.settings import Settings
@@ -62,11 +64,17 @@ def _set_state(mock_redis: AsyncMock) -> MagicMock:
     app.state.engine = engine
     app.state.redis = mock_redis
     app.state.settings = Settings()
+    cfg = MagicMock(spec=AppConfigs)
+    cfg.app = AppConfig(
+        base_url="http://localhost:8000", features=FeaturesConfig(sso_enabled=False)
+    )
+    app.state.config = cfg
+    app.state.oidc_discovery = None
     return engine
 
 
 def _clear_state() -> None:
-    for attr in ("engine", "redis", "settings"):
+    for attr in ("engine", "redis", "settings", "config", "oidc_discovery"):
         if hasattr(app.state, attr):
             delattr(app.state, attr)
 

@@ -46,6 +46,7 @@ class Settings(BaseSettings):
     authentik_client_id: str = ""
     authentik_client_secret: str = ""
     authentik_base_url: str = ""
+    authentik_app_slug: str = "web-scraper"
 
     # Config directory (non-secret YAML files); override in tests via CONFIG_DIR env var
     config_dir: Path = Path("config")
