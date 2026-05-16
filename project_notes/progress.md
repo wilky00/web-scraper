@@ -191,7 +191,11 @@
 - Deferred: ExtractionResult → scoring metrics dict bridge → Phase 6 orchestrator
 - Deferred: RecordData → ORM write-back after dedup merge → Phase 6 orchestrator
 
-## Phase 6 — Job Queue & Lifecycle
+## Phase 6 — Job Queue & Lifecycle — COMPLETE (2026-05-16)
+498/498 unit tests green | ruff clean | mypy strict clean
+Deferred: Status badge auto-update on detail page → Phase 7 or pre-deploy
+Deferred: Accessibility scan for Phase 6 UI → Phase 8 / pre-deploy hardening
+Deferred: Resume re-runs from scratch (no checkpoint) → acceptable for MVP
 
 ### Sprint 6.2 — Job Controls — COMPLETE (verified green 2026-05-16, 498/498 tests, ruff+mypy clean)
 - [x] `app/jobs/orchestrator.py` — poll job status after each record commit; cancel_requested → cancelled; paused → graceful exit
@@ -222,6 +226,23 @@
   - NOTE: Sprint 4.1 helpers (robots, limits, path filter) now wired into orchestrator crawl loop — closes that known issue
   - NOTE: `extract_fields()` added to `ConnectorBase` (default returns `{}`) + implemented in `FixtureConnector`
   - NOTE: Integration tests skipped in local runs (Docker Desktop not running); pass in CI against test DB
+
+## Phase 7 — Records UI + REST API
+
+### Sprint 7.1 — Records Table & Detail — COMPLETE (verified green 2026-05-16, 539/539 tests, ruff+mypy clean)
+- [x] `app/web/records.py` — `GET /records` list page (filter/sort/paginate), `GET /records/{id}` detail page, `GET /records/{id}/edit` HTMX partial
+- [x] `app/api/records.py` — `POST /api/records` (manual add), `POST /api/records/{id}` (inline edit), `POST /api/records/{id}/delete` (soft delete with audit log)
+- [x] `app/templates/records/list.html` — filterable/sortable table, status badges, pagination controls
+- [x] `app/templates/records/detail.html` — field values, source attribution table, score breakdown
+- [x] `app/templates/records/_edit_form.html` — inline HTMX edit partial (swapped into #record-fields)
+- [x] `app/templates/records/_add_modal.html` — Alpine.js modal with HTMX form submit
+- [x] `app/main.py` — register records web + API routers
+- [x] `app/templates/base.html` — add Records nav link
+- [x] `tests/api/test_records_api.py` — 16 tests: CRUD, filter, auth, CSRF, pagination
+- [x] Audit log entries on create, edit, delete
+  - NOTE: Edit uses POST /api/records/{id} (not PATCH) for simpler HTMX form handling
+  - NOTE: Delete is POST /api/records/{id}/delete (soft delete — sets status="deleted")
+  - NOTE: Cancel edit navigates back to /records/{id} as a plain link (full page reload)
 
 ## Phase 4 COMPLETE — 2026-05-15
 - 298/298 tests green (291 unit + 7 Playwright integration)

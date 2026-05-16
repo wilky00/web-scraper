@@ -1,0 +1,200 @@
+{% extends "base.html" %}
+{% block title %}{{ record.name or "Record" }} — Web Scraper{% endblock %}
+{% block content %}
+<div class="min-h-screen p-8">
+    <div class="mx-auto max-w-4xl">
+
+        <!-- Back link -->
+        <div class="mb-6">
+            <a href="/records" class="text-sm text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200">← Back to Records</a>
+        </div>
+
+        <!-- Header -->
+        <div class="mb-8 flex items-start justify-between">
+            <div>
+                <h1 class="text-2xl font-semibold tracking-tight text-gray-900 dark:text-gray-100">
+                    {{ record.name or "Unnamed Record" }}
+                </h1>
+                <div class="mt-2 flex items-center gap-3">
+                    {% if record.status == "active" %}
+                    <span class="inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-300">active</span>
+                    {% elif record.status == "duplicate" %}
+                    <span class="inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium bg-yellow-100 dark:bg-yellow-900/30 text-yellow-800 dark:text-yellow-300">duplicate</span>
+                    {% elif record.status == "excluded" %}
+                    <span class="inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium bg-orange-100 dark:bg-orange-900/30 text-orange-800 dark:text-orange-300">excluded</span>
+                    {% elif record.status == "deleted" %}
+                    <span class="inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium bg-red-100 dark:bg-red-900/30 text-red-800 dark:text-red-300">deleted</span>
+                    {% else %}
+                    <span class="inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400">{{ record.status }}</span>
+                    {% endif %}
+                    {% if record.match_score is not none %}
+                    <span class="text-sm text-gray-500 dark:text-gray-400">Score: {{ "%.1f"|format(record.match_score) }}</span>
+                    {% endif %}
+                    <span class="text-sm text-gray-400 dark:text-gray-500">{{ record.id_short }}…</span>
+                </div>
+            </div>
+            <div class="flex items-center gap-2">
+                <button
+                    hx-get="/records/{{ record.id }}/edit"
+                    hx-target="#record-fields"
+                    hx-swap="innerHTML"
+                    type="button"
+                    class="rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    aria-label="Edit this record"
+                >Edit</button>
+                {% if record.status != "deleted" %}
+                <form hx-post="/api/records/{{ record.id }}/delete" hx-confirm="Delete this record? This can be undone by editing the status.">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                    <button
+                        type="submit"
+                        class="rounded-md border border-red-300 dark:border-red-700 bg-white dark:bg-gray-800 px-4 py-2 text-sm font-medium text-red-700 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 focus:outline-none focus:ring-2 focus:ring-red-500"
+                        aria-label="Delete this record"
+                    >Delete</button>
+                </form>
+                {% endif %}
+            </div>
+        </div>
+
+        <!-- Record fields (view + inline edit target) -->
+        <div class="space-y-6">
+            <div class="rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 shadow-sm">
+                <div class="border-b border-gray-200 dark:border-gray-700 px-6 py-4">
+                    <h2 class="text-base font-semibold text-gray-900 dark:text-gray-100">Record Fields</h2>
+                </div>
+                <div id="record-fields" class="divide-y divide-gray-100 dark:divide-gray-700/50">
+                    {% set fields = [
+                        ("Name", record.name),
+                        ("Website", record.website),
+                        ("Email", record.email),
+                        ("Phone", record.phone),
+                        ("Address", record.address),
+                        ("City", record.location_city),
+                        ("State", record.location_state),
+                        ("Country", record.location_country),
+                    ] %}
+                    {% for label, value in fields %}
+                    <div class="grid grid-cols-3 gap-4 px-6 py-3">
+                        <dt class="text-sm font-medium text-gray-500 dark:text-gray-400">{{ label }}</dt>
+                        <dd class="col-span-2 text-sm text-gray-900 dark:text-gray-100">
+                            {% if value %}
+                                {% if label == "Website" %}
+                                <a href="{{ value }}" target="_blank" rel="noopener noreferrer" class="text-blue-600 dark:text-blue-400 hover:underline break-all">{{ value }}</a>
+                                {% else %}
+                                {{ value }}
+                                {% endif %}
+                            {% else %}
+                            <span class="text-gray-400 dark:text-gray-500">—</span>
+                            {% endif %}
+                        </dd>
+                    </div>
+                    {% endfor %}
+                    {% if record.job_id %}
+                    <div class="grid grid-cols-3 gap-4 px-6 py-3">
+                        <dt class="text-sm font-medium text-gray-500 dark:text-gray-400">Job</dt>
+                        <dd class="col-span-2 text-sm">
+                            <a href="/jobs/{{ record.job_id }}" class="font-mono text-blue-600 dark:text-blue-400 hover:underline">{{ record.job_id[:8] }}…</a>
+                        </dd>
+                    </div>
+                    {% endif %}
+                    <div class="grid grid-cols-3 gap-4 px-6 py-3">
+                        <dt class="text-sm font-medium text-gray-500 dark:text-gray-400">Created</dt>
+                        <dd class="col-span-2 text-sm text-gray-500 dark:text-gray-400">{{ record.created_at }}</dd>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Source attribution -->
+            {% if sources %}
+            <div class="rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 shadow-sm">
+                <div class="border-b border-gray-200 dark:border-gray-700 px-6 py-4">
+                    <h2 class="text-base font-semibold text-gray-900 dark:text-gray-100">Source Attribution</h2>
+                </div>
+                <div class="overflow-x-auto">
+                    <table class="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
+                        <thead class="bg-gray-50 dark:bg-gray-900/50">
+                            <tr>
+                                <th scope="col" class="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">Field</th>
+                                <th scope="col" class="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">Type</th>
+                                <th scope="col" class="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">Raw Value</th>
+                                <th scope="col" class="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">Source URL</th>
+                            </tr>
+                        </thead>
+                        <tbody class="divide-y divide-gray-100 dark:divide-gray-700/50">
+                            {% for src in sources %}
+                            <tr>
+                                <td class="px-6 py-3 text-xs font-mono text-gray-700 dark:text-gray-300">{{ src.field }}</td>
+                                <td class="px-6 py-3 text-xs text-gray-500 dark:text-gray-400">{{ src.source_type }}</td>
+                                <td class="px-6 py-3 text-xs text-gray-700 dark:text-gray-300 max-w-xs truncate">{{ src.raw_value or "—" }}</td>
+                                <td class="px-6 py-3 text-xs">
+                                    {% if src.source_url %}
+                                    <a href="{{ src.source_url }}" target="_blank" rel="noopener noreferrer" class="text-blue-600 dark:text-blue-400 hover:underline truncate max-w-xs block">{{ src.source_url }}</a>
+                                    {% else %}
+                                    <span class="text-gray-400 dark:text-gray-500">—</span>
+                                    {% endif %}
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+            {% endif %}
+
+            <!-- Score breakdown -->
+            {% if rule_results %}
+            <div class="rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 shadow-sm">
+                <div class="border-b border-gray-200 dark:border-gray-700 px-6 py-4 flex items-center justify-between">
+                    <h2 class="text-base font-semibold text-gray-900 dark:text-gray-100">Score Breakdown</h2>
+                    {% if rule_results.match_score is defined %}
+                    <span class="text-sm font-medium text-gray-700 dark:text-gray-300">{{ "%.1f"|format(rule_results.match_score) }} / 100</span>
+                    {% endif %}
+                </div>
+                <div class="divide-y divide-gray-100 dark:divide-gray-700/50 px-6 py-4 space-y-4">
+                    {% if rule_results.excluded %}
+                    <div>
+                        <p class="text-xs font-semibold uppercase tracking-wide text-red-600 dark:text-red-400 mb-2">Excluded</p>
+                        {% for r in rule_results.excluded_by %}
+                        <div class="text-sm text-gray-700 dark:text-gray-300 font-mono">{{ r.rule_label }} — {{ r.metric }} {{ r.operator }}{% if r.value is not none %} {{ r.value }}{% endif %}</div>
+                        {% endfor %}
+                    </div>
+                    {% endif %}
+                    {% if rule_results.failed_must_have %}
+                    <div>
+                        <p class="text-xs font-semibold uppercase tracking-wide text-red-500 dark:text-red-400 mb-2">Failed Must-Have</p>
+                        {% for r in rule_results.failed_must_have %}
+                        <div class="text-sm text-gray-700 dark:text-gray-300 font-mono">{{ r.rule_label }} — {{ r.metric }} {{ r.operator }}{% if r.value is not none %} {{ r.value }}{% endif %}</div>
+                        {% endfor %}
+                    </div>
+                    {% endif %}
+                    {% if rule_results.passed_must_have %}
+                    <div>
+                        <p class="text-xs font-semibold uppercase tracking-wide text-green-600 dark:text-green-400 mb-2">Passed Must-Have</p>
+                        {% for r in rule_results.passed_must_have %}
+                        <div class="text-sm text-gray-700 dark:text-gray-300 font-mono">{{ r.rule_label }} — {{ r.metric }} {{ r.operator }}{% if r.value is not none %} {{ r.value }}{% endif %}</div>
+                        {% endfor %}
+                    </div>
+                    {% endif %}
+                    {% if rule_results.matched_rules %}
+                    <div>
+                        <p class="text-xs font-semibold uppercase tracking-wide text-green-600 dark:text-green-400 mb-2">Matched (scored)</p>
+                        {% for r in rule_results.matched_rules %}
+                        <div class="text-sm text-gray-700 dark:text-gray-300 font-mono">{{ r.rule_label }} — {{ r.metric }} {{ r.operator }}{% if r.value is not none %} {{ r.value }}{% endif %}</div>
+                        {% endfor %}
+                    </div>
+                    {% endif %}
+                    {% if rule_results.failed_rules %}
+                    <div>
+                        <p class="text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400 mb-2">Not matched</p>
+                        {% for r in rule_results.failed_rules %}
+                        <div class="text-sm text-gray-500 dark:text-gray-400 font-mono">{{ r.rule_label }} — {{ r.metric }} {{ r.operator }}{% if r.value is not none %} {{ r.value }}{% endif %}</div>
+                        {% endfor %}
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+            {% endif %}
+
+        </div>
+    </div>
+</div>
+{% endblock %}
