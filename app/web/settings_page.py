@@ -75,5 +75,6 @@ async def settings_page(
             "user": user,
             "csrf_token": csrf_token,
             "config_sections": config_sections,
+            "has_api_token": user.api_key_hash is not None,
         },
     )

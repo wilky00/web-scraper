@@ -342,6 +342,15 @@ Deferred: Streaming responses (SSE) → deferred; full response + loading indica
 - NOTE: `app/models/user.py` already had `sso_sub` field — no change needed
 - NOTE: `app.state.oidc_discovery = None` when Authentik unreachable at boot → SSO button hidden (soft-fail)
 
+### Sprint 10.2 — Pre-deploy Hardening — COMPLETE (verified green 2026-05-16, 668/668 tests, ruff+mypy clean)
+- [x] `app/templates/settings/_token_panel.html` — Alpine.js panel: token status badge, Generate button (POST /api/auth/token), Revoke button (DELETE), copy-to-clipboard for plaintext token
+- [x] `app/web/settings_page.py` — pass `has_api_token: bool` to template context
+- [x] `app/templates/settings.html` — Token Management section above YAML readout; includes `_token_panel.html`
+- [x] `.gitignore` — narrowed `exports/` → `/exports/` (root-anchor); `app/templates/exports/` no longer ignored
+- [x] `docs/deployment.md` — staging + production deploy guide with Authentik registration steps
+- [x] `docs/security-exceptions.md` — pip-audit findings template (clean at time of writing)
+- NOTE: Used Alpine.js for both generate and revoke (not HTMX) — DELETE /api/auth/token returns 204 (no body to swap); revoke reloads page after success
+
 ## Phase 4 COMPLETE — 2026-05-15
 - 298/298 tests green (291 unit + 7 Playwright integration)
 - ruff clean, mypy strict clean

@@ -51,8 +51,8 @@ config/crawl.yml
 config/retention.yml
 config/ai/ai_base.yaml
 
-# Generated exports / artifacts
-exports/
-artifacts/
+# Generated exports / artifacts (root-anchored — app/templates/exports/ is tracked)
+/exports/
+/artifacts/
 
 # Alembic won't ignore migrations — those are committed
