@@ -25,6 +25,15 @@ router = APIRouter()
 templates = Jinja2Templates(directory=str(Path(__file__).parent.parent / "templates"))
 
 
+def _ai_enabled(request: Request) -> bool:
+    """Return True when AI Assist is configured and an API key is present."""
+    config = getattr(request.app.state, "config", None)
+    settings: Settings = getattr(request.app.state, "settings", None)  # type: ignore[assignment]
+    if config is None or settings is None:
+        return False
+    return config.ai is not None and bool(settings.ai_api_key)
+
+
 async def _get_csrf(request: Request, session_cookie: str | None) -> str:
     """Extract the CSRF token from the current session, or return empty string."""
     if not session_cookie:
@@ -118,6 +127,7 @@ async def criteria_new(
             "errors": [],
             "csrf_token": csrf_token,
             "user": user,
+            "ai_enabled": _ai_enabled(request),
         },
     )
 
@@ -172,5 +182,6 @@ async def criteria_editor(
             "errors": [],
             "csrf_token": csrf_token,
             "user": user,
+            "ai_enabled": _ai_enabled(request),
         },
     )

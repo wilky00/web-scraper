@@ -68,6 +68,7 @@
                             hx-swap="innerHTML"
                             aria-label="Criteria YAML"
                         >{{ yaml_text }}</textarea>
+                        {# x-ref is not used here — the AI chat panel targets this textarea by id #}
                     </div>
 
                     <!-- Validation panel — populated by HTMX on keystroke -->
@@ -172,6 +173,11 @@
             </div>
 
         </div>
+
+        {% if ai_enabled %}
+        {% include "criteria/_ai_chat.html" %}
+        {% endif %}
+
     </div>
 </div>
 {% endblock %}

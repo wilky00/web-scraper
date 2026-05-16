@@ -1,0 +1,163 @@
+{# AI Assist chat panel — full-width, collapsible, below the criteria editor. #}
+{# Requires ai_enabled=True and csrf_token in template context. #}
+<div
+    class="mt-6 rounded-lg border border-indigo-200 dark:border-indigo-800 bg-white dark:bg-gray-800 shadow-sm overflow-hidden"
+    x-data="{
+        open: true,
+        messages: [],
+        chatInput: '',
+        loading: false,
+        csrfToken: '',
+        async sendMessage() {
+            const text = this.chatInput.trim();
+            if (!text || this.loading) return;
+            this.messages.push({ role: 'user', content: text, suggested_yaml: null });
+            this.chatInput = '';
+            this.loading = true;
+            await this.$nextTick();
+            this.scrollToBottom();
+            const formData = new FormData();
+            formData.append('message', text);
+            formData.append('csrf_token', this.csrfToken);
+            formData.append('current_yaml', document.getElementById('yaml_text').value || '');
+            const history = this.messages.slice(0, -1).slice(-10).map(m => ({ role: m.role, content: m.content }));
+            formData.append('history', JSON.stringify(history));
+            try {
+                const resp = await fetch('/api/ai/chat', { method: 'POST', body: formData });
+                const data = await resp.json();
+                if (resp.ok) {
+                    this.messages.push({ role: 'assistant', content: data.reply, suggested_yaml: data.suggested_yaml });
+                } else {
+                    this.messages.push({ role: 'assistant', content: (data.error || 'Something went wrong. Please try again.'), suggested_yaml: null });
+                }
+            } catch {
+                this.messages.push({ role: 'assistant', content: 'Could not reach the AI service. Please try again.', suggested_yaml: null });
+            } finally {
+                this.loading = false;
+                await this.$nextTick();
+                this.scrollToBottom();
+            }
+        },
+        applyYaml(yaml) {
+            const ta = document.getElementById('yaml_text');
+            ta.value = yaml;
+            ta.dispatchEvent(new Event('input'));
+        },
+        scrollToBottom() {
+            const area = this.$refs.messageArea;
+            if (area) area.scrollTop = area.scrollHeight;
+        }
+    }"
+    x-init="csrfToken = $el.dataset.csrf"
+    data-csrf="{{ csrf_token }}"
+>
+    <!-- Panel header -->
+    <div
+        class="flex items-center justify-between px-4 py-3 bg-indigo-50 dark:bg-indigo-900/30 border-b border-indigo-200 dark:border-indigo-800 cursor-pointer select-none"
+        @click="open = !open"
+    >
+        <div class="flex items-center gap-2">
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 text-indigo-500 dark:text-indigo-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
+            </svg>
+            <span class="text-sm font-semibold text-indigo-700 dark:text-indigo-300">AI Assistant</span>
+            <span class="text-xs text-indigo-500 dark:text-indigo-400">Describe what you want and let AI draft the YAML</span>
+        </div>
+        <svg
+            xmlns="http://www.w3.org/2000/svg"
+            class="h-4 w-4 text-indigo-400 transition-transform duration-200"
+            :class="open ? 'rotate-180' : ''"
+            fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true"
+        >
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
+        </svg>
+    </div>
+
+    <!-- Collapsible body -->
+    <div x-show="open" x-transition>
+
+        <!-- Message area -->
+        <div
+            x-ref="messageArea"
+            class="h-72 overflow-y-auto px-4 py-3 space-y-3 bg-gray-50 dark:bg-gray-900/40"
+        >
+            <!-- Empty state -->
+            <template x-if="messages.length === 0">
+                <div class="flex flex-col items-center justify-center h-full text-center py-8">
+                    <p class="text-sm text-gray-400 dark:text-gray-500">Ask me to create or update criteria in plain language.</p>
+                    <p class="mt-1 text-xs text-gray-400 dark:text-gray-500 italic">e.g. "Create a template for bakeries near Nashville with social media websites"</p>
+                </div>
+            </template>
+
+            <!-- Messages -->
+            <template x-for="(message, index) in messages" :key="index">
+                <div :class="message.role === 'user' ? 'flex justify-end' : 'flex justify-start'">
+                    <div
+                        class="max-w-[85%] rounded-lg px-3 py-2 text-sm"
+                        :class="message.role === 'user'
+                            ? 'bg-indigo-600 text-white'
+                            : 'bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 text-gray-800 dark:text-gray-200'"
+                    >
+                        <!-- Message content -->
+                        <p class="whitespace-pre-wrap break-words" x-text="message.content"></p>
+
+                        <!-- Apply button — shown when assistant suggests YAML -->
+                        <template x-if="message.role === 'assistant' && message.suggested_yaml">
+                            <button
+                                @click="applyYaml(message.suggested_yaml)"
+                                class="mt-2 inline-flex items-center gap-1.5 rounded bg-indigo-600 hover:bg-indigo-500 dark:bg-indigo-700 dark:hover:bg-indigo-600 px-2.5 py-1 text-xs font-medium text-white transition-colors focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-1"
+                                aria-label="Apply suggested YAML to the editor"
+                            >
+                                <svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
+                                </svg>
+                                Apply to editor
+                            </button>
+                        </template>
+                    </div>
+                </div>
+            </template>
+
+            <!-- Thinking indicator -->
+            <div x-show="loading" class="flex justify-start">
+                <div class="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg px-3 py-2.5">
+                    <div class="flex items-center gap-1.5" aria-label="AI is thinking">
+                        <span class="w-2 h-2 rounded-full bg-indigo-400 animate-bounce" style="animation-delay: 0s"></span>
+                        <span class="w-2 h-2 rounded-full bg-indigo-400 animate-bounce" style="animation-delay: 0.15s"></span>
+                        <span class="w-2 h-2 rounded-full bg-indigo-400 animate-bounce" style="animation-delay: 0.3s"></span>
+                        <span class="ml-1 text-xs text-gray-400 dark:text-gray-500">Thinking...</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Input row -->
+        <div class="px-4 py-3 border-t border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800">
+            <form @submit.prevent="sendMessage()" class="flex items-end gap-2">
+                <label for="ai-chat-input" class="sr-only">Message</label>
+                <textarea
+                    id="ai-chat-input"
+                    x-model="chatInput"
+                    @keydown.enter.prevent="if (!$event.shiftKey) sendMessage()"
+                    rows="2"
+                    placeholder="Describe what you want... (Enter to send, Shift+Enter for new line)"
+                    :disabled="loading"
+                    class="flex-1 resize-none rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 px-3 py-2 text-sm text-gray-900 dark:text-gray-100 placeholder-gray-400 focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500 disabled:opacity-50"
+                ></textarea>
+                <button
+                    type="submit"
+                    :disabled="loading || !chatInput.trim()"
+                    class="flex-shrink-0 inline-flex items-center gap-1.5 rounded-md bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 dark:focus:ring-offset-gray-900 disabled:opacity-50 disabled:cursor-not-allowed transition-opacity"
+                    aria-label="Send message"
+                >
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" />
+                    </svg>
+                    Send
+                </button>
+            </form>
+            <p class="mt-1.5 text-xs text-gray-400 dark:text-gray-500">AI-generated YAML should be reviewed before saving. Chat history is not saved between page loads.</p>
+        </div>
+
+    </div>
+</div>

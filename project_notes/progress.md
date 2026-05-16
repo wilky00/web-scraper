@@ -312,10 +312,10 @@ Deferred: Token management UI (generate/revoke via browser) → deferred from Ph
 - [x] `tests/unit/test_ai_chat.py` — `build_messages()`, `extract_yaml_block()`
 - [x] `tests/api/test_ai_api.py` — auth, CSRF, rate limit, mocked client, 503 when not configured
 
-### Sprint 9.2 — Chat UI
-- [ ] `app/templates/criteria/_ai_chat.html` — Alpine.js chat panel (full-width, collapsible, below editor)
-- [ ] `app/web/criteria.py` — add `ai_enabled: bool` to template context
-- [ ] `app/templates/criteria/editor.html` — include chat partial; add `x-ref="yaml_text"` on textarea
+### Sprint 9.2 — Chat UI — COMPLETE (verified green 2026-05-16, 642/642 tests, ruff+mypy clean)
+- [x] `app/templates/criteria/_ai_chat.html` — Alpine.js chat panel (full-width, collapsible, below editor)
+- [x] `app/web/criteria.py` — add `ai_enabled: bool` to template context
+- [x] `app/templates/criteria/editor.html` — include chat partial below editor grid
 
 ## Phase 4 COMPLETE — 2026-05-15
 - 298/298 tests green (291 unit + 7 Playwright integration)
