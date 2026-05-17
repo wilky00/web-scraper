@@ -1,10 +1,12 @@
 {% extends "base.html" %}
 {% block title %}Criteria — Web Scraper{% endblock %}
-{% block content %}
-<div
-    class="min-h-screen p-8"
-    x-data="{
-        items: {{ groups | tojson }},
+{% block head %}
+<script>
+// Move sort logic out of x-data attribute — unescaped < / > inside HTML
+// attributes break the parser and leak raw JS onto the page.
+document.addEventListener('alpine:init', () => {
+    Alpine.data('criteriaList', (items) => ({
+        items,
         sortBy: 'display_name',
         sortDir: 'asc',
         get sorted() {
@@ -30,8 +32,12 @@
             if (this.sortBy !== col) return '↕';
             return this.sortDir === 'asc' ? '↑' : '↓';
         }
-    }"
->
+    }));
+});
+</script>
+{% endblock %}
+{% block content %}
+<div class="min-h-screen p-8" x-data="criteriaList({{ groups | tojson }})">
     <div class="mx-auto max-w-6xl">
         <div class="mb-8 flex items-center justify-between">
             <div>

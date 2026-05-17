@@ -6,16 +6,20 @@ import secrets
 import uuid
 from pathlib import Path
 
+import yaml
+
 import structlog
 from fastapi import APIRouter, Cookie, Depends, Form, Request
-from fastapi.responses import HTMLResponse, RedirectResponse, Response
+from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse, Response
 from fastapi.templating import Jinja2Templates
 from sqlalchemy import func, select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.auth.permissions import require_operator
 from app.auth.session import SESSION_COOKIE, get_session
 from app.config.criteria import validate_criteria_yaml
+from app.web.criteria import _ai_enabled
 from app.models.audit import RecordAuditLog
 from app.models.criteria import CriteriaGroup, CriteriaVersion
 from app.models.user import User
@@ -72,6 +76,7 @@ def _render_editor(
     errors: list[str] | None = None,
     csrf_token: str = "",
     user: User,
+    ai_enabled: bool = False,
     status_code: int = 200,
 ) -> Response:
     return templates.TemplateResponse(
@@ -84,6 +89,7 @@ def _render_editor(
             "errors": errors or [],
             "csrf_token": csrf_token,
             "user": user,
+            "ai_enabled": ai_enabled,
         },
         status_code=status_code,
     )
@@ -131,6 +137,7 @@ async def create_criteria(
             errors=["Invalid form submission. Please try again."],
             csrf_token=real_csrf,
             user=user,
+            ai_enabled=_ai_enabled(request),
             status_code=400,
         )
 
@@ -149,47 +156,74 @@ async def create_criteria(
             errors=errors,
             csrf_token=real_csrf2,
             user=user,
+            ai_enabled=_ai_enabled(request),
             status_code=422,
         )
 
     snapshot = config.model_dump()
-    async with AsyncSession(request.app.state.engine) as db:
-        group = CriteriaGroup(
-            name=config.metadata.name,
-            display_name=config.metadata.display_name,
-            description=config.metadata.description,
-            tags=config.metadata.tags,
-            is_active=True,
-        )
-        db.add(group)
-        await db.flush()
+    try:
+        async with AsyncSession(request.app.state.engine) as db:
+            group = CriteriaGroup(
+                name=config.metadata.name,
+                display_name=config.metadata.display_name,
+                description=config.metadata.description,
+                tags=config.metadata.tags,
+                is_active=True,
+            )
+            db.add(group)
+            await db.flush()
 
-        version = CriteriaVersion(
-            group_id=group.id,
-            version=1,
-            config_snapshot=snapshot,
-            is_active=True,
-            created_by=user.id,
-        )
-        db.add(version)
+            # Capture IDs before commit — commit expires all ORM attributes and
+            # accessing them on a detached object after session close raises
+            # DetachedInstanceError.
+            group_id = group.id
 
-        audit = RecordAuditLog(
-            user_id=user.id,
-            action="criteria_save",
-            resource_type="criteria_version",
-            resource_id=str(version.id),
-            diff={"group_id": str(group.id), "version": 1, "name": config.metadata.name},
+            version = CriteriaVersion(
+                group_id=group_id,
+                version=1,
+                config_snapshot=snapshot,
+                is_active=True,
+                created_by=user.id,
+            )
+            db.add(version)
+            version_id = version.id
+
+            audit = RecordAuditLog(
+                user_id=user.id,
+                action="criteria_save",
+                resource_type="criteria_version",
+                resource_id=str(version_id),
+                diff={"group_id": str(group_id), "version": 1, "name": config.metadata.name},
+            )
+            db.add(audit)
+            await db.commit()
+    except IntegrityError:
+        settings3: Settings = request.app.state.settings
+        session_data3 = (
+            await get_session(request.app.state.redis, session_cookie, settings3.secret_key)
+            if session_cookie
+            else None
         )
-        db.add(audit)
-        await db.commit()
+        real_csrf3 = session_data3.get("csrf_token", "") if session_data3 else ""
+        return _render_editor(
+            request,
+            yaml_text=yaml_text,
+            errors=[
+                f"A criteria named '{config.metadata.name}' already exists. Use a unique name."
+            ],
+            csrf_token=real_csrf3,
+            user=user,
+            ai_enabled=_ai_enabled(request),
+            status_code=409,
+        )
 
     logger.info(
         "criteria.created",
-        group_id=str(group.id),
+        group_id=str(group_id),
         name=config.metadata.name,
         user_id=str(user.id),
     )
-    return RedirectResponse(url=f"/criteria/{group.id}", status_code=303)
+    return RedirectResponse(url=f"/criteria/{group_id}", status_code=303)
 
 
 # ---------------------------------------------------------------------------
@@ -227,6 +261,7 @@ async def save_criteria_version(
             errors=["Invalid form submission. Please try again."],
             csrf_token=real_csrf,
             user=user,
+            ai_enabled=_ai_enabled(request),
             status_code=400,
         )
 
@@ -237,6 +272,7 @@ async def save_criteria_version(
             errors=["Criteria group not found."],
             csrf_token=csrf_token,
             user=user,
+            ai_enabled=_ai_enabled(request),
             status_code=404,
         )
 
@@ -263,6 +299,7 @@ async def save_criteria_version(
             errors=errors,
             csrf_token=real_csrf2,
             user=user,
+            ai_enabled=_ai_enabled(request),
             status_code=422,
         )
 
@@ -316,6 +353,31 @@ async def save_criteria_version(
 # ---------------------------------------------------------------------------
 # GET /api/criteria/{group_id}/versions  (version history HTMX partial)
 # ---------------------------------------------------------------------------
+
+
+@router.get("/api/criteria/{group_id}/yaml")
+async def get_criteria_yaml(
+    request: Request,
+    group_id: uuid.UUID,
+    user: User = Depends(require_operator),
+) -> Response:
+    async with AsyncSession(request.app.state.engine) as db:
+        result = await db.execute(
+            select(CriteriaVersion)
+            .where(CriteriaVersion.group_id == group_id)
+            .order_by(CriteriaVersion.version.desc())
+            .limit(1)
+        )
+        version = result.scalar_one_or_none()
+    if version is None:
+        return JSONResponse({"error": "Not found"}, status_code=404)
+    yaml_text = yaml.dump(
+        version.config_snapshot,
+        default_flow_style=False,
+        allow_unicode=True,
+        sort_keys=False,
+    )
+    return JSONResponse({"yaml": yaml_text})
 
 
 @router.get("/api/criteria/{group_id}/versions", response_class=HTMLResponse)

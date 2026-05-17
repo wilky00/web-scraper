@@ -20,11 +20,13 @@ async def chat_complete(
     messages: list[dict[str, str]],
     ai_config: AIConfig,
     api_key: str,
+    model_override: str | None = None,
 ) -> str:
     """Call the OpenAI-compatible chat completions endpoint and return the reply text."""
     url = ai_config.base_url.rstrip("/") + "/chat/completions"
+    model = model_override or ai_config.model
     payload = {
-        "model": ai_config.model,
+        "model": model,
         "messages": messages,
         "max_tokens": ai_config.max_tokens,
         "temperature": ai_config.temperature,
@@ -38,16 +40,20 @@ async def chat_complete(
         async with httpx.AsyncClient(timeout=_REQUEST_TIMEOUT) as client:
             response = await client.post(url, json=payload, headers=headers)
     except httpx.TimeoutException as exc:
-        raise AIClientError("AI API request timed out") from exc
+        raise AIClientError("AI API request timed out — is the proxy running?") from exc
     except httpx.RequestError as exc:
-        raise AIClientError(f"AI API request failed: {exc}") from exc
+        raise AIClientError(
+            f"Could not reach AI API — check base_url in ai_base.yaml ({exc})"
+        ) from exc
 
     if response.status_code != 200:
         logger.warning(
             "ai.client.http_error",
             status=response.status_code,
-            model=ai_config.model,
+            model=model,
         )
+        if response.status_code in (401, 403):
+            raise AIClientError("AI API authentication failed — check your API key")
         raise AIClientError(f"AI API returned HTTP {response.status_code}")
 
     try:

@@ -117,6 +117,18 @@ async def criteria_new(
         "  max_results: 60\n"
     )
 
+    async with AsyncSession(request.app.state.engine) as db:
+        t_result = await db.execute(select(CriteriaGroup).order_by(CriteriaGroup.display_name))
+        template_list = [
+            {
+                "id": str(g.id),
+                "display_name": g.display_name,
+                "description": g.description or "",
+                "tags": g.tags or [],
+            }
+            for g in t_result.scalars().all()
+        ]
+
     return templates.TemplateResponse(
         request,
         "criteria/editor.html",
@@ -128,6 +140,7 @@ async def criteria_new(
             "csrf_token": csrf_token,
             "user": user,
             "ai_enabled": _ai_enabled(request),
+            "templates": template_list,
         },
     )
 
@@ -160,6 +173,17 @@ async def criteria_editor(
         )
         versions = list(versions_result.scalars().all())
 
+        t_result = await db.execute(select(CriteriaGroup).order_by(CriteriaGroup.display_name))
+        template_list = [
+            {
+                "id": str(g.id),
+                "display_name": g.display_name,
+                "description": g.description or "",
+                "tags": g.tags or [],
+            }
+            for g in t_result.scalars().all()
+        ]
+
     latest = versions[0] if versions else None
     yaml_text = (
         yaml.dump(
@@ -183,5 +207,6 @@ async def criteria_editor(
             "csrf_token": csrf_token,
             "user": user,
             "ai_enabled": _ai_enabled(request),
+            "templates": template_list,
         },
     )
