@@ -17,6 +17,8 @@ COPY pyproject.toml uv.lock* ./
 RUN uv pip install --system --no-cache .
 
 COPY app/ ./app/
+COPY alembic.ini ./
+COPY migrations/ ./migrations/
 
 RUN chown -R appuser:appuser /app
 
