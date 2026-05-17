@@ -11,6 +11,7 @@ from fastapi import APIRouter, Cookie, Depends, Form, Request
 from fastapi.responses import HTMLResponse, RedirectResponse, Response
 from fastapi.templating import Jinja2Templates
 from sqlalchemy import func, select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.auth.permissions import require_operator
@@ -72,6 +73,7 @@ def _render_editor(
     errors: list[str] | None = None,
     csrf_token: str = "",
     user: User,
+    ai_enabled: bool = False,
     status_code: int = 200,
 ) -> Response:
     return templates.TemplateResponse(
@@ -84,6 +86,7 @@ def _render_editor(
             "errors": errors or [],
             "csrf_token": csrf_token,
             "user": user,
+            "ai_enabled": ai_enabled,
         },
         status_code=status_code,
     )
@@ -153,43 +156,68 @@ async def create_criteria(
         )
 
     snapshot = config.model_dump()
-    async with AsyncSession(request.app.state.engine) as db:
-        group = CriteriaGroup(
-            name=config.metadata.name,
-            display_name=config.metadata.display_name,
-            description=config.metadata.description,
-            tags=config.metadata.tags,
-            is_active=True,
-        )
-        db.add(group)
-        await db.flush()
+    try:
+        async with AsyncSession(request.app.state.engine) as db:
+            group = CriteriaGroup(
+                name=config.metadata.name,
+                display_name=config.metadata.display_name,
+                description=config.metadata.description,
+                tags=config.metadata.tags,
+                is_active=True,
+            )
+            db.add(group)
+            await db.flush()
 
-        version = CriteriaVersion(
-            group_id=group.id,
-            version=1,
-            config_snapshot=snapshot,
-            is_active=True,
-            created_by=user.id,
-        )
-        db.add(version)
+            # Capture IDs before commit — commit expires all ORM attributes and
+            # accessing them on a detached object after session close raises
+            # DetachedInstanceError.
+            group_id = group.id
 
-        audit = RecordAuditLog(
-            user_id=user.id,
-            action="criteria_save",
-            resource_type="criteria_version",
-            resource_id=str(version.id),
-            diff={"group_id": str(group.id), "version": 1, "name": config.metadata.name},
+            version = CriteriaVersion(
+                group_id=group_id,
+                version=1,
+                config_snapshot=snapshot,
+                is_active=True,
+                created_by=user.id,
+            )
+            db.add(version)
+            version_id = version.id
+
+            audit = RecordAuditLog(
+                user_id=user.id,
+                action="criteria_save",
+                resource_type="criteria_version",
+                resource_id=str(version_id),
+                diff={"group_id": str(group_id), "version": 1, "name": config.metadata.name},
+            )
+            db.add(audit)
+            await db.commit()
+    except IntegrityError:
+        settings3: Settings = request.app.state.settings
+        session_data3 = (
+            await get_session(request.app.state.redis, session_cookie, settings3.secret_key)
+            if session_cookie
+            else None
         )
-        db.add(audit)
-        await db.commit()
+        real_csrf3 = session_data3.get("csrf_token", "") if session_data3 else ""
+        return _render_editor(
+            request,
+            yaml_text=yaml_text,
+            errors=[
+                f"A criteria named '{config.metadata.name}' already exists. Use a unique name."
+            ],
+            csrf_token=real_csrf3,
+            user=user,
+            status_code=409,
+        )
 
     logger.info(
         "criteria.created",
-        group_id=str(group.id),
+        group_id=str(group_id),
         name=config.metadata.name,
         user_id=str(user.id),
     )
-    return RedirectResponse(url=f"/criteria/{group.id}", status_code=303)
+    return RedirectResponse(url=f"/criteria/{group_id}", status_code=303)
 
 
 # ---------------------------------------------------------------------------

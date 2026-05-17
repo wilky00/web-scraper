@@ -5,17 +5,16 @@
     <div class="mx-auto max-w-6xl">
 
         <!-- Header -->
-        <div class="mb-6">
+        <div
+            class="mb-6"
+            x-data="{ criteriaName: '{% if group %}{{ group.display_name | e }}{% else %}New Criteria{% endif %}' }"
+        >
             <div class="flex items-center gap-2 text-sm text-gray-500 dark:text-gray-400 mb-2">
                 <a href="/criteria" class="hover:text-blue-600 dark:hover:text-blue-400">Criteria</a>
                 <span>›</span>
-                <span class="text-gray-700 dark:text-gray-300">
-                    {% if group %}{{ group.display_name }}{% else %}New Criteria{% endif %}
-                </span>
+                <span class="text-gray-700 dark:text-gray-300" x-text="criteriaName"></span>
             </div>
-            <h1 class="text-2xl font-semibold tracking-tight text-gray-900 dark:text-gray-100">
-                {% if group %}{{ group.display_name }}{% else %}New Criteria{% endif %}
-            </h1>
+            <h1 class="text-2xl font-semibold tracking-tight text-gray-900 dark:text-gray-100" x-text="criteriaName"></h1>
             {% if group %}
             <p class="mt-1 text-sm text-gray-500 dark:text-gray-400 font-mono">{{ group.name }}</p>
             {% else %}
@@ -67,6 +66,7 @@
                             hx-include="#csrf-input"
                             hx-swap="innerHTML"
                             aria-label="Criteria YAML"
+                            x-on:input="const m = $event.target.value.match(/display_name:\s*(.+)/); criteriaName = (m && m[1].trim()) || '{% if group %}{{ group.display_name | e }}{% else %}New Criteria{% endif %}'"
                         >{{ yaml_text }}</textarea>
                         {# x-ref is not used here — the AI chat panel targets this textarea by id #}
                     </div>
@@ -84,11 +84,12 @@
                         <button
                             type="submit"
                             class="inline-flex items-center gap-2 rounded-md bg-blue-600 px-5 py-2 text-sm font-medium text-white shadow-sm hover:bg-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 dark:focus:ring-offset-gray-900"
+                            title="{% if group %}Save the YAML above as a new immutable version of this criteria{% else %}Validate and save the YAML above as a new criteria entry{% endif %}"
                         >
                             <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4" />
                             </svg>
-                            {% if group %}Save as new version{% else %}Create criteria{% endif %}
+                            {% if group %}Save as new version{% else %}Save criteria{% endif %}
                         </button>
                         <button
                             type="button"

@@ -272,6 +272,37 @@ async def test_create_criteria_invalid_yaml_returns_422(
     assert "Criteria Editor" in resp.text or "editor" in resp.text.lower()
 
 
+@pytest.mark.asyncio
+async def test_create_criteria_duplicate_name_returns_409(
+    mock_user: MagicMock,
+    mock_redis_criteria: AsyncMock,
+    signed_session: str,
+) -> None:
+    """Duplicate criteria name must return 409 in-page error, not a raw 500."""
+    from sqlalchemy.exc import IntegrityError as SAIntegrityError
+
+    _set_state(mock_redis_criteria)
+    app.dependency_overrides[require_operator] = lambda: mock_user
+
+    db_mock = _make_criteria_db_mock()
+    db_mock.commit = AsyncMock(side_effect=SAIntegrityError("mock", {}, Exception()))
+
+    try:
+        with patch("app.api.criteria.AsyncSession", return_value=db_mock):
+            async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as c:
+                resp = await c.post(
+                    "/api/criteria",
+                    data={"yaml_text": VALID_YAML, "csrf_token": _SESSION_CSRF},
+                    cookies={SESSION_COOKIE: signed_session},
+                )
+    finally:
+        app.dependency_overrides.clear()
+        _clear_state()
+
+    assert resp.status_code == 409
+    assert "already exists" in resp.text
+
+
 # ---------------------------------------------------------------------------
 # POST /api/criteria/{group_id}/versions  (save new version)
 # ---------------------------------------------------------------------------
