@@ -12,10 +12,10 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.models.crawl import CrawlPage
 from app.models.job import CrawlJobEvent
 from app.services import storage
-from app.worker.fetcher import FetchResult
 
 if TYPE_CHECKING:
     from app.settings import Settings
+    from app.worker.fetcher import FetchResult
 
 logger = structlog.get_logger(__name__)
 
