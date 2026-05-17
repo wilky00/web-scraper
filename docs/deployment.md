@@ -80,10 +80,10 @@ In the Authentik admin UI at `https://auth.saltrun.net`:
 
 1. **Create OAuth2/OpenID Provider:**
    - Name: `web-scraper-staging`
-   - Authorization flow: `default-authorization-flow`
+   - Authorization flow: `default-provider-authorization-implicit-consent` (skips consent screen — correct for internal tools)
    - Client type: Confidential
    - Generate Client ID and Client Secret → copy both to staging `.env`
-   - Redirect URIs: `https://web-scraper.staging.saltrun.net/auth/oidc/callback`
+   - Redirect URI (Strict): `https://web-scraper.staging.saltrun.net/auth/oidc/callback`
    - Signing Key: select your default key pair
 
 2. **Create Application:**
