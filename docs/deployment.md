@@ -6,14 +6,15 @@ This document covers staging and production deployment of the Web Scraper applic
 
 - SSH access to `saltrun-staging` or `saltrun-production`
 - Docker and Docker Compose on the target host
-- Caddy reverse proxy running (via `caddy-local` on nexus)
+- Caddy reverse proxy running as native systemd service on saltrun-staging (`/etc/caddy/Caddyfile`)
+- `*.staging.saltrun.net` DNS rewrite in AdGuard pointing to `10.217.100.77`
 - Authentik instance at `auth.saltrun.net` (for SSO)
 
 ---
 
 ## Staging Deployment
 
-**URL:** `https://web-scraper.staging.saltrun.net`
+**URL:** `https://scrapy.staging.saltrun.net`
 
 ### 1. Scaffold check
 
@@ -83,7 +84,7 @@ In the Authentik admin UI at `https://auth.saltrun.net`:
    - Authorization flow: `default-provider-authorization-implicit-consent` (skips consent screen — correct for internal tools)
    - Client type: Confidential
    - Generate Client ID and Client Secret → copy both to staging `.env`
-   - Redirect URI (Strict): `https://web-scraper.staging.saltrun.net/auth/oidc/callback`
+   - Redirect URI (Strict): `https://scrapy.staging.saltrun.net/auth/oidc/callback`
    - Signing Key: select your default key pair
 
 2. **Create Application:**
@@ -100,7 +101,7 @@ In the Authentik admin UI at `https://auth.saltrun.net`:
 
 ```bash
 # Health check
-curl -s https://web-scraper.staging.saltrun.net/health
+curl -s https://scrapy.staging.saltrun.net/health
 
 # Expected: {"status":"ok","db":"ok","redis":"ok"}
 ```
