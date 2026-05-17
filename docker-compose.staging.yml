@@ -10,6 +10,9 @@ services:
   app:
     ports: []
     restart: always
+    networks:
+      - default
+      - minio_default
     logging:
       driver: "json-file"
       options:
@@ -18,6 +21,9 @@ services:
 
   worker:
     restart: always
+    networks:
+      - default
+      - minio_default
     logging:
       driver: "json-file"
       options:
@@ -31,7 +37,11 @@ services:
     restart: always
 
   # MinIO is NOT deployed here — saltrun-staging already has MinIO running.
-  # Set S3_ENDPOINT_URL=http://minio:9000 in .env pointing to the shared MinIO instance.
+  # App and worker join minio_default network to reach MinIO at http://minio:9000
   minio:
     profiles:
       - disabled
+
+networks:
+  minio_default:
+    external: true
