@@ -6,9 +6,11 @@ import secrets
 import uuid
 from pathlib import Path
 
+import yaml
+
 import structlog
 from fastapi import APIRouter, Cookie, Depends, Form, Request
-from fastapi.responses import HTMLResponse, RedirectResponse, Response
+from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse, Response
 from fastapi.templating import Jinja2Templates
 from sqlalchemy import func, select
 from sqlalchemy.exc import IntegrityError
@@ -17,6 +19,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.auth.permissions import require_operator
 from app.auth.session import SESSION_COOKIE, get_session
 from app.config.criteria import validate_criteria_yaml
+from app.web.criteria import _ai_enabled
 from app.models.audit import RecordAuditLog
 from app.models.criteria import CriteriaGroup, CriteriaVersion
 from app.models.user import User
@@ -134,6 +137,7 @@ async def create_criteria(
             errors=["Invalid form submission. Please try again."],
             csrf_token=real_csrf,
             user=user,
+            ai_enabled=_ai_enabled(request),
             status_code=400,
         )
 
@@ -152,6 +156,7 @@ async def create_criteria(
             errors=errors,
             csrf_token=real_csrf2,
             user=user,
+            ai_enabled=_ai_enabled(request),
             status_code=422,
         )
 
@@ -208,6 +213,7 @@ async def create_criteria(
             ],
             csrf_token=real_csrf3,
             user=user,
+            ai_enabled=_ai_enabled(request),
             status_code=409,
         )
 
@@ -255,6 +261,7 @@ async def save_criteria_version(
             errors=["Invalid form submission. Please try again."],
             csrf_token=real_csrf,
             user=user,
+            ai_enabled=_ai_enabled(request),
             status_code=400,
         )
 
@@ -265,6 +272,7 @@ async def save_criteria_version(
             errors=["Criteria group not found."],
             csrf_token=csrf_token,
             user=user,
+            ai_enabled=_ai_enabled(request),
             status_code=404,
         )
 
@@ -291,6 +299,7 @@ async def save_criteria_version(
             errors=errors,
             csrf_token=real_csrf2,
             user=user,
+            ai_enabled=_ai_enabled(request),
             status_code=422,
         )
 
@@ -344,6 +353,31 @@ async def save_criteria_version(
 # ---------------------------------------------------------------------------
 # GET /api/criteria/{group_id}/versions  (version history HTMX partial)
 # ---------------------------------------------------------------------------
+
+
+@router.get("/api/criteria/{group_id}/yaml")
+async def get_criteria_yaml(
+    request: Request,
+    group_id: uuid.UUID,
+    user: User = Depends(require_operator),
+) -> Response:
+    async with AsyncSession(request.app.state.engine) as db:
+        result = await db.execute(
+            select(CriteriaVersion)
+            .where(CriteriaVersion.group_id == group_id)
+            .order_by(CriteriaVersion.version.desc())
+            .limit(1)
+        )
+        version = result.scalar_one_or_none()
+    if version is None:
+        return JSONResponse({"error": "Not found"}, status_code=404)
+    yaml_text = yaml.dump(
+        version.config_snapshot,
+        default_flow_style=False,
+        allow_unicode=True,
+        sort_keys=False,
+    )
+    return JSONResponse({"yaml": yaml_text})
 
 
 @router.get("/api/criteria/{group_id}/versions", response_class=HTMLResponse)

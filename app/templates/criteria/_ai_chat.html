@@ -8,6 +8,19 @@
         chatInput: '',
         loading: false,
         csrfToken: '',
+        selectedModel: '',
+        availableModels: [],
+        modelsLoaded: false,
+        async loadModels() {
+            if (this.modelsLoaded) return;
+            try {
+                const r = await fetch('/api/ai/models');
+                const d = await r.json();
+                this.availableModels = d.models || [];
+                this.selectedModel = d.default || '';
+            } catch { /* keep empty — sendMessage still works, backend uses config default */ }
+            this.modelsLoaded = true;
+        },
         async sendMessage() {
             const text = this.chatInput.trim();
             if (!text || this.loading) return;
@@ -22,6 +35,7 @@
             formData.append('current_yaml', document.getElementById('yaml_text').value || '');
             const history = this.messages.slice(0, -1).slice(-10).map(m => ({ role: m.role, content: m.content }));
             formData.append('history', JSON.stringify(history));
+            if (this.selectedModel) formData.append('model', this.selectedModel);
             try {
                 const resp = await fetch('/api/ai/chat', { method: 'POST', body: formData });
                 const data = await resp.json();
@@ -48,7 +62,7 @@
             if (area) area.scrollTop = area.scrollHeight;
         }
     }"
-    x-init="csrfToken = $el.dataset.csrf"
+    x-init="csrfToken = $el.dataset.csrf; loadModels()"
     data-csrf="{{ csrf_token }}"
 >
     <!-- Panel header -->
@@ -63,14 +77,35 @@
             <span class="text-sm font-semibold text-indigo-700 dark:text-indigo-300">AI Assistant</span>
             <span class="text-xs text-indigo-500 dark:text-indigo-400">Describe what you want and let AI draft the YAML</span>
         </div>
-        <svg
-            xmlns="http://www.w3.org/2000/svg"
-            class="h-4 w-4 text-indigo-400 transition-transform duration-200"
-            :class="open ? 'rotate-180' : ''"
-            fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true"
-        >
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
-        </svg>
+        <div class="flex items-center gap-2" @click.stop>
+            <div x-show="availableModels.length > 1" class="flex items-center gap-1">
+                <label for="ai-model-select" class="text-xs text-indigo-500 dark:text-indigo-400 whitespace-nowrap">Model:</label>
+                <select
+                    id="ai-model-select"
+                    x-model="selectedModel"
+                    class="rounded border border-indigo-200 dark:border-indigo-700 bg-white dark:bg-gray-800 px-2 py-0.5 text-xs text-indigo-700 dark:text-indigo-300 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                    aria-label="Select AI model"
+                >
+                    <template x-for="m in availableModels" :key="m">
+                        <option :value="m" x-text="m"></option>
+                    </template>
+                </select>
+            </div>
+            <span
+                x-show="availableModels.length === 1"
+                class="text-xs text-indigo-400 dark:text-indigo-500 max-w-[12rem] truncate"
+                x-text="availableModels[0] || ''"
+            ></span>
+            <svg
+                xmlns="http://www.w3.org/2000/svg"
+                class="h-4 w-4 text-indigo-400 transition-transform duration-200 cursor-pointer"
+                :class="open ? 'rotate-180' : ''"
+                fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true"
+                @click.stop="open = !open"
+            >
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
+            </svg>
+        </div>
     </div>
 
     <!-- Collapsible body -->

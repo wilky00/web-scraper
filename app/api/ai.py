@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 import secrets
 
+import httpx
 import structlog
 from fastapi import APIRouter, Cookie, Depends, Form, Request
 from fastapi.responses import JSONResponse
@@ -53,6 +54,35 @@ async def _check_rate_limit(redis: object, user_id: str) -> bool:
     return int(count) <= _RATE_LIMIT_MAX
 
 
+@router.get("/api/ai/models")
+async def ai_models(
+    request: Request,
+    user: User = Depends(require_operator),
+) -> JSONResponse:
+    ai_config: AIConfig | None = getattr(request.app.state.config, "ai", None)
+    if ai_config is None:
+        return JSONResponse({"error": "AI Assist is not configured"}, status_code=503)
+
+    settings: Settings = request.app.state.settings
+    url = ai_config.base_url.rstrip("/") + "/models"
+    headers = {"Authorization": f"Bearer {settings.ai_api_key}"}
+
+    models: list[str] = []
+    try:
+        async with httpx.AsyncClient(timeout=10.0) as http:
+            response = await http.get(url, headers=headers)
+        response.raise_for_status()
+        data = response.json()
+        models = sorted(item["id"] for item in data.get("data", []) if item.get("id"))
+    except Exception:
+        pass
+
+    if not models:
+        models = [ai_config.model]
+
+    return JSONResponse({"models": models, "default": ai_config.model})
+
+
 @router.post("/api/ai/chat")
 async def ai_chat(
     request: Request,
@@ -60,6 +90,7 @@ async def ai_chat(
     current_yaml: str = Form(default=""),
     history: str = Form(default="[]"),
     csrf_token: str = Form(default=""),
+    model: str = Form(default=""),
     session_cookie: str | None = Cookie(default=None, alias=SESSION_COOKIE),
     user: User = Depends(require_operator),
 ) -> JSONResponse:
@@ -98,11 +129,14 @@ async def ai_chat(
     messages = build_messages(message, current_yaml or None, history_list, skill_content)
 
     # Call AI
+    model_override = model.strip() or None
     try:
-        reply = await chat_complete(messages, ai_config, settings.ai_api_key)
+        reply = await chat_complete(
+            messages, ai_config, settings.ai_api_key, model_override=model_override
+        )
     except AIClientError as exc:
         logger.warning("ai.chat.client_error", error=str(exc), user_id=str(user.id))
-        return JSONResponse({"error": "AI service unavailable. Please try again."}, status_code=502)
+        return JSONResponse({"error": str(exc)}, status_code=502)
 
     suggested_yaml = extract_yaml_block(reply)
 
@@ -110,6 +144,7 @@ async def ai_chat(
         "ai.chat.completed",
         user_id=str(user.id),
         has_yaml=suggested_yaml is not None,
+        model=model_override or ai_config.model,
     )
 
     return JSONResponse({"reply": reply, "suggested_yaml": suggested_yaml})

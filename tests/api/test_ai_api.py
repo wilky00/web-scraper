@@ -206,7 +206,7 @@ async def test_chat_passes_current_yaml_to_messages(
 ) -> None:
     captured: list[list[dict]] = []
 
-    async def fake_complete(messages, ai_config, api_key):
+    async def fake_complete(messages, ai_config, api_key, model_override=None):
         captured.append(messages)
         return "response"
 
@@ -235,7 +235,7 @@ async def test_chat_passes_history_to_messages(client: AsyncClient, signed_cooki
     ]
     captured: list[list[dict]] = []
 
-    async def fake_complete(messages, ai_config, api_key):
+    async def fake_complete(messages, ai_config, api_key, model_override=None):
         captured.append(messages)
         return "new response"
 
@@ -255,3 +255,88 @@ async def test_chat_passes_history_to_messages(client: AsyncClient, signed_cooki
     contents = [m["content"] for m in captured[0]]
     assert "earlier question" in contents
     assert "earlier answer" in contents
+
+
+# ---------------------------------------------------------------------------
+# GET /api/ai/models
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_ai_models_returns_list(client: AsyncClient, signed_cookie: str) -> None:
+    mock_response = MagicMock()
+    mock_response.raise_for_status = MagicMock()
+    mock_response.json.return_value = {
+        "data": [{"id": "model-b"}, {"id": "model-a"}, {"id": "model-c"}]
+    }
+
+    mock_http = AsyncMock()
+    mock_http.__aenter__ = AsyncMock(return_value=mock_http)
+    mock_http.__aexit__ = AsyncMock(return_value=None)
+    mock_http.get = AsyncMock(return_value=mock_response)
+
+    with patch("app.api.ai.httpx.AsyncClient", return_value=mock_http):
+        resp = await client.get("/api/ai/models", cookies={SESSION_COOKIE: signed_cookie})
+
+    assert resp.status_code == 200
+    body = resp.json()
+    assert "models" in body
+    assert "default" in body
+    assert body["models"] == ["model-a", "model-b", "model-c"]
+    assert body["default"] == _AI_CONFIG.model
+
+
+@pytest.mark.asyncio
+async def test_ai_models_fallback_on_error(client: AsyncClient, signed_cookie: str) -> None:
+    mock_http = AsyncMock()
+    mock_http.__aenter__ = AsyncMock(return_value=mock_http)
+    mock_http.__aexit__ = AsyncMock(return_value=None)
+    mock_http.get = AsyncMock(side_effect=Exception("network error"))
+
+    with patch("app.api.ai.httpx.AsyncClient", return_value=mock_http):
+        resp = await client.get("/api/ai/models", cookies={SESSION_COOKIE: signed_cookie})
+
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["models"] == [_AI_CONFIG.model]
+    assert body["default"] == _AI_CONFIG.model
+
+
+@pytest.mark.asyncio
+async def test_ai_chat_with_model_override(client: AsyncClient, signed_cookie: str) -> None:
+    captured_overrides: list[str | None] = []
+
+    async def fake_complete(messages, ai_config, api_key, model_override=None):
+        captured_overrides.append(model_override)
+        return "response"
+
+    with patch("app.api.ai.chat_complete", new=fake_complete):
+        with patch("app.api.ai.load_skills", return_value=""):
+            resp = await client.post(
+                "/api/ai/chat",
+                data={
+                    "message": "create criteria",
+                    "csrf_token": _SESSION_CSRF,
+                    "model": "gpt-4o",
+                },
+                cookies={SESSION_COOKIE: signed_cookie},
+            )
+
+    assert resp.status_code == 200
+    assert captured_overrides == ["gpt-4o"]
+
+
+@pytest.mark.asyncio
+async def test_chat_502_exposes_error_detail(client: AsyncClient, signed_cookie: str) -> None:
+    from app.ai.client import AIClientError
+
+    specific_msg = "AI API authentication failed — check your API key"
+    with patch("app.api.ai.chat_complete", new=AsyncMock(side_effect=AIClientError(specific_msg))):
+        with patch("app.api.ai.load_skills", return_value=""):
+            resp = await client.post(
+                "/api/ai/chat",
+                data={"message": "hello", "csrf_token": _SESSION_CSRF},
+                cookies={SESSION_COOKIE: signed_cookie},
+            )
+    assert resp.status_code == 502
+    assert resp.json()["error"] == specific_msg

@@ -452,9 +452,18 @@ async def test_criteria_new_renders_editor(
     _set_state(mock_redis_criteria)
     app.dependency_overrides[require_operator] = lambda: mock_user
 
+    templates_result = MagicMock()
+    templates_result.scalars.return_value.all.return_value = []
+
+    db_mock: AsyncMock = AsyncMock()
+    db_mock.__aenter__ = AsyncMock(return_value=db_mock)
+    db_mock.__aexit__ = AsyncMock(return_value=None)
+    db_mock.execute = AsyncMock(return_value=templates_result)
+
     try:
-        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as c:
-            resp = await c.get("/criteria/new")
+        with patch("app.web.criteria.AsyncSession", return_value=db_mock):
+            async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as c:
+                resp = await c.get("/criteria/new")
     finally:
         app.dependency_overrides.clear()
         _clear_state()
@@ -492,10 +501,16 @@ async def test_criteria_editor_renders_existing(
     group_result.scalar_one_or_none.return_value = mock_group
     versions_result = MagicMock()
     versions_result.scalars.return_value.all.return_value = [version]
+    templates_result = MagicMock()
+    templates_result.scalars.return_value.all.return_value = []
 
     async def _execute(*args: object, **kw: object) -> MagicMock:
         call_n["n"] += 1
-        return group_result if call_n["n"] == 1 else versions_result
+        if call_n["n"] == 1:
+            return group_result
+        if call_n["n"] == 2:
+            return versions_result
+        return templates_result
 
     db_mock: AsyncMock = AsyncMock()
     db_mock.__aenter__ = AsyncMock(return_value=db_mock)
@@ -553,3 +568,70 @@ async def test_criteria_editor_unknown_group_redirects(
 
     assert resp.status_code == 303
     assert resp.headers["location"] == "/criteria"
+
+
+# ---------------------------------------------------------------------------
+# GET /api/criteria/{group_id}/yaml
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_get_criteria_yaml_returns_yaml(
+    mock_user: MagicMock, mock_redis_criteria: AsyncMock
+) -> None:
+    _set_state(mock_redis_criteria)
+    app.dependency_overrides[require_operator] = lambda: mock_user
+
+    version_mock = MagicMock(spec=CriteriaVersion)
+    version_mock.config_snapshot = {
+        "metadata": {"name": "test", "display_name": "Test", "description": "", "tags": []},
+        "source": {"connector": "fixture", "max_results": 10, "query_fields": []},
+    }
+
+    scalar_result = MagicMock()
+    scalar_result.scalar_one_or_none.return_value = version_mock
+
+    db_mock: AsyncMock = AsyncMock()
+    db_mock.__aenter__ = AsyncMock(return_value=db_mock)
+    db_mock.__aexit__ = AsyncMock(return_value=None)
+    db_mock.execute = AsyncMock(return_value=scalar_result)
+
+    gid = uuid.uuid4()
+    try:
+        with patch("app.api.criteria.AsyncSession", return_value=db_mock):
+            async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as c:
+                resp = await c.get(f"/api/criteria/{gid}/yaml")
+    finally:
+        app.dependency_overrides.clear()
+        _clear_state()
+
+    assert resp.status_code == 200
+    body = resp.json()
+    assert "yaml" in body
+    assert "name: test" in body["yaml"]
+
+
+@pytest.mark.asyncio
+async def test_get_criteria_yaml_returns_404_when_not_found(
+    mock_user: MagicMock, mock_redis_criteria: AsyncMock
+) -> None:
+    _set_state(mock_redis_criteria)
+    app.dependency_overrides[require_operator] = lambda: mock_user
+
+    scalar_result = MagicMock()
+    scalar_result.scalar_one_or_none.return_value = None
+
+    db_mock: AsyncMock = AsyncMock()
+    db_mock.__aenter__ = AsyncMock(return_value=db_mock)
+    db_mock.__aexit__ = AsyncMock(return_value=None)
+    db_mock.execute = AsyncMock(return_value=scalar_result)
+
+    try:
+        with patch("app.api.criteria.AsyncSession", return_value=db_mock):
+            async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as c:
+                resp = await c.get(f"/api/criteria/{uuid.uuid4()}/yaml")
+    finally:
+        app.dependency_overrides.clear()
+        _clear_state()
+
+    assert resp.status_code == 404

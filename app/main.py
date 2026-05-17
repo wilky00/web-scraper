@@ -12,8 +12,8 @@ import structlog
 from fastapi import FastAPI, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse, RedirectResponse
-from sqlalchemy import text
-from sqlalchemy.ext.asyncio import AsyncEngine, create_async_engine
+from sqlalchemy import select, text
+from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, create_async_engine
 
 from app.api.ai import router as api_ai_router
 from app.api.auth import router as api_auth_router
@@ -22,10 +22,12 @@ from app.api.criteria import router as api_criteria_router
 from app.api.exports import router as api_exports_router
 from app.api.jobs import router as api_jobs_router
 from app.api.records import router as api_records_router
+from app.models.user import User
 from app.auth.oidc import load_oidc_discovery
 from app.auth.oidc import sso_enabled as _oidc_sso_enabled
 from app.auth.permissions import NotAuthenticatedException
 from app.auth.seed import seed_operator
+from app.criteria.seed import seed_example_criteria
 from app.config.loader import ConfigLoadError, load_all_configs
 from app.settings import Settings
 from app.web.audit import router as web_audit_router
@@ -68,6 +70,10 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     await seed_operator(
         app.state.engine, settings.seed_operator_email, settings.seed_operator_password
     )
+
+    async with AsyncSession(app.state.engine) as _db:
+        _seed_user = (await _db.execute(select(User).limit(1))).scalar_one_or_none()
+    await seed_example_criteria(app.state.engine, _seed_user.id if _seed_user else None)
 
     app.state.oidc_discovery = None
     if _oidc_sso_enabled(settings, app.state.config.app):

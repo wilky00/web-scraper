@@ -1,5 +1,25 @@
 {% extends "base.html" %}
 {% block title %}{% if group %}{{ group.display_name }} — {% endif %}Criteria Editor — Web Scraper{% endblock %}
+{% block head %}
+<style>.htmx-indicator{display:none}.htmx-request .htmx-indicator{display:inline-flex;align-items:center}</style>
+<script>
+async function loadCriteriaTemplate(groupId) {
+    try {
+        const resp = await fetch('/api/criteria/' + groupId + '/yaml');
+        if (!resp.ok) return;
+        const data = await resp.json();
+        if (!data.yaml) return;
+        const ta = document.getElementById('yaml_text');
+        ta.value = data.yaml;
+        ta.dispatchEvent(new Event('input'));
+        ta.focus();
+        ta.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    } catch (e) {
+        console.error('loadCriteriaTemplate failed', e);
+    }
+}
+</script>
+{% endblock %}
 {% block content %}
 <div class="min-h-screen p-8">
     <div class="mx-auto max-w-6xl">
@@ -97,8 +117,16 @@
                             hx-target="#validation-panel"
                             hx-include="#yaml_text,#csrf-input"
                             hx-swap="innerHTML"
+                            hx-indicator="#validate-btn-spinner"
+                            hx-on:htmx:after-request="document.getElementById('validation-panel').scrollIntoView({behavior:'smooth',block:'nearest'})"
                             class="inline-flex items-center gap-2 rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-200 shadow-sm hover:bg-gray-50 dark:hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 dark:focus:ring-offset-gray-900"
                         >
+                            <span id="validate-btn-spinner" class="htmx-indicator">
+                                <svg class="animate-spin h-3 w-3 text-gray-500 dark:text-gray-400" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" aria-hidden="true">
+                                    <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                                    <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
+                                </svg>
+                            </span>
                             Validate
                         </button>
                         <a
@@ -147,6 +175,61 @@
                     </div>
                     {% endif %}
                 </div>
+
+                <!-- Templates picker -->
+                {% if templates is defined %}
+                <div class="rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 shadow-sm overflow-hidden"
+                     x-data="{ open: {% if not group %}true{% else %}false{% endif %}, search: '' }">
+                    <div class="px-4 py-3 border-b border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900/50 cursor-pointer select-none flex items-center justify-between"
+                         @click="open = !open">
+                        <h2 class="text-sm font-semibold text-gray-700 dark:text-gray-300">
+                            Templates
+                            {% if templates %}<span class="ml-1.5 text-xs font-normal text-gray-400 dark:text-gray-500">({{ templates|length }})</span>{% endif %}
+                        </h2>
+                        <svg xmlns="http://www.w3.org/2000/svg"
+                             class="h-4 w-4 text-gray-400 transition-transform duration-150"
+                             :class="open ? 'rotate-180' : ''"
+                             fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/>
+                        </svg>
+                    </div>
+                    <div x-show="open" x-transition>
+                        {% if templates %}
+                        <div class="px-3 py-2 border-b border-gray-100 dark:border-gray-700/50">
+                            <input type="text" x-model="search" placeholder="Filter templates…"
+                                   class="w-full rounded border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900 px-2 py-1 text-xs text-gray-700 dark:text-gray-300 placeholder-gray-400 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                                   aria-label="Filter templates" />
+                        </div>
+                        <ul class="divide-y divide-gray-100 dark:divide-gray-700/50 max-h-72 overflow-y-auto">
+                            {% for t in templates %}
+                            <li class="px-3 py-2.5"
+                                x-show="!search || '{{ (t.display_name ~ ' ' ~ t.description ~ ' ' ~ (t.tags | join(' '))) | lower | e }}'.includes(search.toLowerCase())">
+                                <div class="flex items-start justify-between gap-2">
+                                    <div class="min-w-0">
+                                        <p class="text-xs font-medium text-gray-800 dark:text-gray-200 leading-tight truncate">{{ t.display_name }}</p>
+                                        {% if t.description %}
+                                        <p class="mt-0.5 text-xs text-gray-400 dark:text-gray-500 line-clamp-2 leading-tight">{{ t.description[:120] }}{% if t.description|length > 120 %}…{% endif %}</p>
+                                        {% endif %}
+                                    </div>
+                                    <button type="button"
+                                            onclick="loadCriteriaTemplate('{{ t.id }}')"
+                                            class="flex-shrink-0 text-xs font-medium text-blue-600 dark:text-blue-400 hover:underline whitespace-nowrap"
+                                            aria-label="Load template {{ t.display_name | e }}">
+                                        Load
+                                    </button>
+                                </div>
+                            </li>
+                            {% endfor %}
+                        </ul>
+                        {% else %}
+                        <div class="px-4 py-4 text-center">
+                            <p class="text-xs text-gray-400 dark:text-gray-500">No saved criteria yet.</p>
+                            <p class="mt-0.5 text-xs text-gray-400 dark:text-gray-500">Save this one to start building a library.</p>
+                        </div>
+                        {% endif %}
+                    </div>
+                </div>
+                {% endif %}
 
                 <!-- Quick reference -->
                 <div class="rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 shadow-sm overflow-hidden">
