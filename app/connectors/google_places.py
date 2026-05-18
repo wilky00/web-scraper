@@ -70,20 +70,17 @@ class GooglePlacesConnector(ConnectorBase):
         self._http_client = http_client
 
     async def discover(self, job_config: dict[str, Any]) -> AsyncIterator[ConnectorResult]:
-        query = str(job_config.get("query", "")).strip()
+        query, location, max_results = self._resolve_query_params(job_config)
         if not query:
             logger.warning("google_places.missing_query")
             return
 
-        location = job_config.get("location")
         if location:
             query = f"{query} {location}"
 
         api_key = os.environ.get("GOOGLE_PLACES_API_KEY", "")
         if not api_key:
             raise RuntimeError("GOOGLE_PLACES_API_KEY environment variable is not set")
-
-        max_results = int(job_config.get("max_results", self._config.max_results))
         # Minimum inter-page delay to stay within rate limit
         page_delay = 60.0 / self._config.rate_limit.requests_per_minute
 
@@ -136,6 +133,39 @@ class GooglePlacesConnector(ConnectorBase):
         finally:
             if owns_client:
                 await client.aclose()
+
+    def _resolve_query_params(self, job_config: dict[str, Any]) -> tuple[str, str | None, int]:
+        """Extract query, location, and max_results from job_config.
+
+        Supports both a flat top-level format (legacy) and the nested
+        criteria.source.query_fields format used by the criteria YAML system.
+        """
+        # Flat top-level keys take precedence (used in unit tests / direct calls)
+        flat_query = str(job_config.get("query", "")).strip()
+        if flat_query:
+            location = job_config.get("location")
+            max_results = int(job_config.get("max_results", self._config.max_results))
+            return flat_query, location, max_results
+
+        # Build from criteria.source.query_fields
+        source = (job_config.get("criteria") or {}).get("source") or {}
+        query_fields: list[dict[str, str]] = source.get("query_fields") or []
+
+        query_terms: list[str] = []
+        location: str | None = None
+        for qf in query_fields:
+            field = str(qf.get("field", "")).lower()
+            value = str(qf.get("value", "")).strip()
+            if not value:
+                continue
+            if field == "location":
+                location = value
+            elif field in ("type", "keyword", "query"):
+                query_terms.append(value)
+
+        query = " ".join(query_terms)
+        max_results = int(source.get("max_results", self._config.max_results))
+        return query, location, max_results
 
     async def _search_page(
         self,
