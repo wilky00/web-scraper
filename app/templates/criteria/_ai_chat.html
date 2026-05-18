@@ -11,8 +11,10 @@
         selectedModel: '',
         availableModels: [],
         modelsLoaded: false,
-        async loadModels() {
-            if (this.modelsLoaded) return;
+        loadingModels: false,
+        async loadModels(force = false) {
+            if (this.modelsLoaded && !force) return;
+            this.loadingModels = true;
             try {
                 const r = await fetch('/api/ai/models');
                 const d = await r.json();
@@ -20,6 +22,7 @@
                 this.selectedModel = d.default || '';
             } catch { /* keep empty — sendMessage still works, backend uses config default */ }
             this.modelsLoaded = true;
+            this.loadingModels = false;
         },
         async sendMessage() {
             const text = this.chatInput.trim();
@@ -96,6 +99,18 @@
                 class="text-xs text-indigo-400 dark:text-indigo-500 max-w-[12rem] truncate"
                 x-text="availableModels[0] || ''"
             ></span>
+            <button
+                type="button"
+                @click="loadModels(true)"
+                :disabled="loadingModels"
+                title="Refresh available models"
+                aria-label="Refresh model list"
+                class="rounded p-0.5 text-indigo-400 dark:text-indigo-500 hover:text-indigo-600 dark:hover:text-indigo-300 focus:outline-none focus:ring-1 focus:ring-indigo-500 disabled:opacity-40 transition-colors"
+            >
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-3.5 w-3.5" :class="loadingModels ? 'animate-spin' : ''" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                </svg>
+            </button>
             <svg
                 xmlns="http://www.w3.org/2000/svg"
                 class="h-4 w-4 text-indigo-400 transition-transform duration-200 cursor-pointer"
