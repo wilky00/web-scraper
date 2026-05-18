@@ -27,7 +27,10 @@ metadata:
   display_name: Human Name    # shown in the UI
   description: "What this criteria finds"
   tags: [tag1, tag2]          # optional list of strings
+  project: ProjectA           # optional — scope to a project by name; omit for Default (all projects)
 ```
+
+**Project scoping:** When `metadata.project` is set, this template is only visible when that project is selected in the job creation form. Templates without a project tag are available to all projects (Default). The project name must exactly match an existing project in the system.
 
 ---
 
@@ -54,7 +57,7 @@ source:
 
 ## `crawl` (optional)
 
-Controls website crawling after connector discovery.
+Controls website crawling after connector discovery. When enabled, Scrapy uses **Playwright** (headless Chromium) to fetch each discovered URL — this handles JavaScript-rendered pages and automatically captures a screenshot. Global crawl defaults (`USER_AGENT`, request delays) are set in `config/crawl.yml` and apply unless overridden here.
 
 ```yaml
 crawl:
