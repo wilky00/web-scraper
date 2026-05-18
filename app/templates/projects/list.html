@@ -12,6 +12,17 @@
         deleteConfirm: '',
         targetProjectId: '',
         working: false,
+        async createProject() {
+            this.working = true;
+            const fd = new FormData();
+            fd.append('name', this.$refs.newName.value.trim());
+            fd.append('description', this.$refs.newDesc.value.trim());
+            fd.append('csrf_token', '{{ csrf_token }}');
+            const r = await fetch('/api/projects', { method: 'POST', body: fd });
+            this.working = false;
+            if (r.ok) { window.location.reload(); }
+            else { const d = await r.json(); alert(d.error || 'Create failed'); }
+        },
         openEdit(p) { this.activeProject = p; this.editModal = true; },
         openDelete(p) { this.activeProject = p; this.deleteConfirm = ''; this.deleteModal = true; },
         openMove(p) { this.activeProject = p; this.targetProjectId = ''; this.moveModal = true; },
@@ -78,20 +89,14 @@
             class="mb-6 rounded-lg border border-blue-200 dark:border-blue-800 bg-blue-50 dark:bg-blue-900/20 p-5"
         >
             <h2 class="text-sm font-semibold text-gray-900 dark:text-gray-100 mb-4">Create Project</h2>
-            <form
-                hx-post="/api/projects"
-                hx-target="body"
-                hx-push-url="true"
-                class="space-y-4"
-            >
-                <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+            <form @submit.prevent="createProject()" class="space-y-4">
                 <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <div>
                         <label for="new-project-name" class="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">Name <span class="text-red-500" aria-hidden="true">*</span></label>
                         <input
                             id="new-project-name"
+                            x-ref="newName"
                             type="text"
-                            name="name"
                             required
                             placeholder="e.g. Website Builder"
                             class="w-full rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 px-3 py-1.5 text-sm text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500"
@@ -101,15 +106,15 @@
                         <label for="new-project-desc" class="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">Description</label>
                         <input
                             id="new-project-desc"
+                            x-ref="newDesc"
                             type="text"
-                            name="description"
                             placeholder="Optional short description"
                             class="w-full rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 px-3 py-1.5 text-sm text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500"
                         >
                     </div>
                 </div>
                 <div class="flex gap-3">
-                    <button type="submit" class="rounded-md bg-blue-600 px-4 py-1.5 text-sm font-medium text-white hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500">Create</button>
+                    <button type="submit" :disabled="working" class="rounded-md bg-blue-600 px-4 py-1.5 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50 focus:outline-none focus:ring-2 focus:ring-blue-500" x-text="working ? 'Creating…' : 'Create'"></button>
                     <button type="button" @click="showCreate = false" class="rounded-md border border-gray-300 dark:border-gray-600 px-4 py-1.5 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 focus:outline-none focus:ring-2 focus:ring-blue-500">Cancel</button>
                 </div>
             </form>
