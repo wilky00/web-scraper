@@ -1,5 +1,19 @@
-<!-- Inline edit form — HTMX partial swapped into #record-fields -->
-<form hx-post="/api/records/{{ record.id }}" class="divide-y divide-gray-100 dark:divide-gray-700/50">
+<!-- Inline edit form — loaded into #record-fields via fetch() -->
+<form class="divide-y divide-gray-100 dark:divide-gray-700/50"
+      x-data="{
+          async save(el) {
+              const data = new URLSearchParams(new FormData(el));
+              const resp = await fetch('/api/records/{{ record.id }}', {
+                  method: 'POST',
+                  headers: {'Content-Type': 'application/x-www-form-urlencoded'},
+                  body: data
+              });
+              if (!resp.ok) { const d = await resp.json(); alert(d.error || 'Save failed'); return; }
+              const redirect = resp.headers.get('HX-Redirect');
+              window.location.href = redirect || '/records/{{ record.id }}';
+          }
+      }"
+      @submit.prevent="save($el)">
     <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
 
     {% set text_fields = [

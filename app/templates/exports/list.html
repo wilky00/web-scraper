@@ -13,7 +13,20 @@
         <!-- Export trigger form -->
         <div class="mb-8 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 p-6 shadow-sm">
             <h2 class="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-4">New Export</h2>
-            <form hx-post="/api/exports" class="flex flex-wrap items-center gap-3">
+            <form class="flex flex-wrap items-center gap-3"
+                  x-data="{
+                      async submit(el) {
+                          const data = new URLSearchParams(new FormData(el));
+                          const resp = await fetch('/api/exports', {
+                              method: 'POST',
+                              headers: {'Content-Type': 'application/x-www-form-urlencoded'},
+                              body: data
+                          });
+                          if (!resp.ok) { const d = await resp.json(); alert(d.error || 'Export failed'); return; }
+                          window.location.reload();
+                      }
+                  }"
+                  @submit.prevent="submit($el)">
                 <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
                 <label for="export-project" class="text-sm text-gray-600 dark:text-gray-400">Project</label>
                 <select
@@ -91,4 +104,7 @@
 
     </div>
 </div>
+{% if exports and exports | selectattr("status", "in", ["pending", "processing"]) | list %}
+<script>setTimeout(() => location.reload(), 5000);</script>
+{% endif %}
 {% endblock %}

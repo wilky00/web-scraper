@@ -1,10 +1,5 @@
 {% if export.status in ["pending", "processing"] %}
-<td class="px-4 py-3"
-    hx-get="/exports/{{ export.id }}/status"
-    hx-trigger="every 2s"
-    hx-swap="outerHTML"
-    hx-target="this"
->
+<td class="px-4 py-3">
     <span class="inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium bg-yellow-100 dark:bg-yellow-900/30 text-yellow-800 dark:text-yellow-300">{{ export.status }}</span>
 </td>
 {% elif export.status == "ready" %}

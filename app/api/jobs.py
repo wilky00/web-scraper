@@ -1,8 +1,9 @@
 # ABOUTME: Jobs API endpoints — create, enqueue, and control crawl jobs.
-# ABOUTME: Includes cancel/pause/resume endpoints used by the job detail UI via HTMX.
+# ABOUTME: Includes cancel/pause/resume endpoints used by the job detail UI.
 from __future__ import annotations
 
 import asyncio
+import copy
 import json
 import secrets
 import uuid
@@ -10,17 +11,19 @@ from typing import Any
 
 import redis
 import structlog
-from fastapi import APIRouter, Cookie, Depends, Form, Request
+from fastapi import APIRouter, Cookie, Depends, Request
 from fastapi.responses import JSONResponse, Response
 from rq import Queue
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.auth.permissions import require_operator
 from app.auth.session import SESSION_COOKIE, get_session
 from app.models.connector import Connector
 from app.models.criteria import CriteriaVersion
-from app.models.job import CrawlJob
+from app.models.job import CrawlJob, CrawlJobEvent
 from app.models.project import Project
+from app.models.record import BusinessRecord
 from app.models.user import User
 from app.settings import Settings
 from app.worker.persist import log_crawl_event
@@ -89,7 +92,7 @@ async def create_job(
     except ValueError:
         return JSONResponse({"error": "Invalid UUID format"}, status_code=422)
 
-    # Extract and validate optional crawl config overrides
+    # Extract and validate optional config overrides
     raw_config: dict[str, Any] = body.get("config") or {}
     crawl_overrides: dict[str, Any] = {}
     for key in _CRAWL_OVERRIDE_KEYS:
@@ -98,6 +101,17 @@ async def create_job(
                 crawl_overrides[key] = int(raw_config[key])
             except (TypeError, ValueError):
                 return JSONResponse({"error": f"config.{key} must be an integer"}, status_code=422)
+
+    max_results_override: int | None = None
+    if "max_results" in raw_config:
+        try:
+            max_results_override = int(raw_config["max_results"])
+            if max_results_override < 1:
+                raise ValueError
+        except (TypeError, ValueError):
+            return JSONResponse(
+                {"error": "config.max_results must be a positive integer"}, status_code=422
+            )
 
     project_id: uuid.UUID | None = None
     project_id_str = body.get("project_id")
@@ -123,8 +137,13 @@ async def create_job(
             if project is None:
                 return JSONResponse({"error": "Project not found"}, status_code=404)
 
+        criteria_snap: dict[str, Any] = copy.deepcopy(criteria_version.config_snapshot or {})
+        if max_results_override is not None:
+            source: dict[str, Any] = criteria_snap.setdefault("source", {})
+            source["max_results"] = max_results_override
+
         config_snapshot: dict[str, Any] = {
-            "criteria": criteria_version.config_snapshot,
+            "criteria": criteria_snap,
             "connector": connector.config_snapshot,
         }
         if crawl_overrides:
@@ -175,6 +194,27 @@ async def get_job(
         job: CrawlJob | None = await db.get(CrawlJob, parsed_id)
         if job is None:
             return JSONResponse({"error": "Job not found"}, status_code=404)
+
+        count_result = await db.execute(
+            select(func.count()).where(BusinessRecord.job_id == parsed_id)
+        )
+        record_count: int = count_result.scalar() or 0
+
+        events_result = await db.execute(
+            select(CrawlJobEvent)
+            .where(CrawlJobEvent.job_id == parsed_id)
+            .order_by(CrawlJobEvent.created_at.asc())
+        )
+        raw_events = list(events_result.scalars())
+        events_data = [
+            {
+                "event_type": e.event_type,
+                "message": e.message,
+                "created_at": e.created_at.strftime("%H:%M:%S") if e.created_at else "--",
+            }
+            for e in raw_events
+        ]
+
         return JSONResponse(
             {
                 "job_id": str(job.id),
@@ -182,11 +222,13 @@ async def get_job(
                 "created_at": job.created_at.isoformat() if job.created_at else None,
                 "connector_id": str(job.connector_id),
                 "criteria_version_id": str(job.criteria_version_id),
+                "record_count": record_count,
+                "events": events_data,
             }
         )
 
 
-# ── Job controls (pause / resume / cancel) ───────────────────────────────────
+# -- Job controls (pause / resume / cancel) -----------------------------------
 
 
 async def _check_csrf(
@@ -209,12 +251,18 @@ async def _check_csrf(
 async def cancel_job(
     job_id: str,
     request: Request,
-    csrf_token: str = Form(default=""),
     session_cookie: str | None = Cookie(default=None, alias=SESSION_COOKIE),
     user: User = Depends(require_operator),
 ) -> Response:
     """Request cancellation of a queued, running, or paused job."""
-    if not await _check_csrf(request, csrf_token, session_cookie):
+    body: dict[str, Any] = {}
+    try:
+        body = await request.json()
+    except Exception:
+        pass
+    form_csrf = body.get("csrf_token", "")
+
+    if not await _check_csrf(request, form_csrf, session_cookie):
         return JSONResponse({"error": "Invalid CSRF token"}, status_code=403)
 
     try:
@@ -242,12 +290,18 @@ async def cancel_job(
 async def pause_job(
     job_id: str,
     request: Request,
-    csrf_token: str = Form(default=""),
     session_cookie: str | None = Cookie(default=None, alias=SESSION_COOKIE),
     user: User = Depends(require_operator),
 ) -> Response:
     """Request that a running job pause after its current record."""
-    if not await _check_csrf(request, csrf_token, session_cookie):
+    body: dict[str, Any] = {}
+    try:
+        body = await request.json()
+    except Exception:
+        pass
+    form_csrf = body.get("csrf_token", "")
+
+    if not await _check_csrf(request, form_csrf, session_cookie):
         return JSONResponse({"error": "Invalid CSRF token"}, status_code=403)
 
     try:
@@ -275,12 +329,18 @@ async def pause_job(
 async def resume_job(
     job_id: str,
     request: Request,
-    csrf_token: str = Form(default=""),
     session_cookie: str | None = Cookie(default=None, alias=SESSION_COOKIE),
     user: User = Depends(require_operator),
 ) -> Response:
     """Re-enqueue a paused job to run from the beginning."""
-    if not await _check_csrf(request, csrf_token, session_cookie):
+    body: dict[str, Any] = {}
+    try:
+        body = await request.json()
+    except Exception:
+        pass
+    form_csrf = body.get("csrf_token", "")
+
+    if not await _check_csrf(request, form_csrf, session_cookie):
         return JSONResponse({"error": "Invalid CSRF token"}, status_code=403)
 
     try:
@@ -310,7 +370,7 @@ async def resume_job(
     return Response(status_code=200, headers={"HX-Redirect": f"/jobs/{job_id}"})
 
 
-# ── Test run endpoints ────────────────────────────────────────────────────────
+# -- Test run endpoints -------------------------------------------------------
 
 
 @router.post("/api/jobs/test", status_code=202)

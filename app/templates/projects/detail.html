@@ -32,6 +32,16 @@
         navigator.clipboard.writeText(this.newKeyToken);
         this.copied = true;
         setTimeout(() => this.copied = false, 2000);
+    },
+    async revokeKey(keyId, label) {
+        if (!confirm(`Revoke key '${label}'? Any system using it will lose access immediately.`)) return;
+        const resp = await fetch(`/api/projects/{{ project.id }}/keys/${keyId}`, {
+            method: 'DELETE',
+            headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+            body: 'csrf_token={{ csrf_token }}'
+        });
+        if (!resp.ok) { const d = await resp.json(); alert(d.error || 'Revoke failed'); return; }
+        window.location.reload();
     }
 }">
     <div class="mx-auto max-w-5xl">
@@ -92,10 +102,9 @@
                         <span class="text-xs text-red-500 dark:text-red-400">Revoked</span>
                         {% else %}
                         <span class="inline-flex items-center gap-1 rounded-full bg-green-100 dark:bg-green-900/30 px-2 py-0.5 text-xs font-medium text-green-700 dark:text-green-400">Active</span>
-                        <form hx-delete="/api/projects/{{ project.id }}/keys/{{ key.id }}" hx-confirm="Revoke key '{{ key.label }}'? Any system using it will lose access immediately." hx-target="body">
-                            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-                            <button type="submit" class="rounded-md border border-red-200 dark:border-red-700 px-2.5 py-1 text-xs font-medium text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 focus:outline-none focus:ring-2 focus:ring-red-500">Revoke</button>
-                        </form>
+                        <button type="button"
+                            @click="revokeKey('{{ key.id }}', '{{ key.label }}')"
+                            class="rounded-md border border-red-200 dark:border-red-700 px-2.5 py-1 text-xs font-medium text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 focus:outline-none focus:ring-2 focus:ring-red-500">Revoke</button>
                         {% endif %}
                     </div>
                 </div>

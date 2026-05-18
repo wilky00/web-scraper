@@ -1,7 +1,27 @@
 {% extends "base.html" %}
 {% block title %}{{ record.name or "Record" }} — Web Scraper{% endblock %}
 {% block content %}
-<div class="min-h-screen p-8">
+<div class="min-h-screen p-8" x-data="{
+    async loadEdit() {
+        const resp = await fetch('/records/{{ record.id }}/edit');
+        if (!resp.ok) return;
+        const html = await resp.text();
+        const el = document.getElementById('record-fields');
+        el.innerHTML = html;
+        Alpine.initTree(el);
+    },
+    async deleteRecord() {
+        if (!confirm('Delete this record? This can be undone by editing the status.')) return;
+        const resp = await fetch('/api/records/{{ record.id }}/delete', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+            body: 'csrf_token={{ csrf_token }}'
+        });
+        if (!resp.ok) { const d = await resp.json(); alert(d.error || 'Delete failed'); return; }
+        const redirect = resp.headers.get('HX-Redirect');
+        window.location.href = redirect || '/records';
+    }
+}">
     <div class="mx-auto max-w-4xl">
 
         <!-- Back link -->
@@ -35,22 +55,18 @@
             </div>
             <div class="flex items-center gap-2">
                 <button
-                    hx-get="/records/{{ record.id }}/edit"
-                    hx-target="#record-fields"
-                    hx-swap="innerHTML"
                     type="button"
+                    @click="loadEdit()"
                     class="rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500"
                     aria-label="Edit this record"
                 >Edit</button>
                 {% if record.status != "deleted" %}
-                <form hx-post="/api/records/{{ record.id }}/delete" hx-confirm="Delete this record? This can be undone by editing the status.">
-                    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-                    <button
-                        type="submit"
-                        class="rounded-md border border-red-300 dark:border-red-700 bg-white dark:bg-gray-800 px-4 py-2 text-sm font-medium text-red-700 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 focus:outline-none focus:ring-2 focus:ring-red-500"
-                        aria-label="Delete this record"
-                    >Delete</button>
-                </form>
+                <button
+                    type="button"
+                    @click="deleteRecord()"
+                    class="rounded-md border border-red-300 dark:border-red-700 bg-white dark:bg-gray-800 px-4 py-2 text-sm font-medium text-red-700 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 focus:outline-none focus:ring-2 focus:ring-red-500"
+                    aria-label="Delete this record"
+                >Delete</button>
                 {% endif %}
             </div>
         </div>

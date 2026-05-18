@@ -1,5 +1,5 @@
 # ABOUTME: Web routes for job list and detail pages.
-# ABOUTME: Includes HTMX partial endpoint for live event log polling on the detail page.
+# ABOUTME: Manages job lifecycle pages and provides server-side data for detail polling.
 from __future__ import annotations
 
 import uuid
@@ -15,7 +15,6 @@ from sqlalchemy.orm import aliased
 
 from app.auth.permissions import require_operator
 from app.auth.session import SESSION_COOKIE, get_session
-from app.config.models import CrawlConfig
 from app.models.connector import Connector
 from app.models.criteria import CriteriaGroup, CriteriaVersion
 from app.models.job import CrawlJob, CrawlJobEvent
@@ -124,12 +123,9 @@ async def new_job_form(
     else:
         default_project_id = projects[0]["id"] if projects else ""
 
-    # Default crawl config values for the form
-    app_crawl: CrawlConfig = request.app.state.config.crawl
+    # Default config values for the job form
     default_config = {
-        "max_pages_per_job": app_crawl.max_pages_per_job,
-        "delay_between_requests_ms": app_crawl.delay_between_requests_ms,
-        "max_depth": app_crawl.max_depth,
+        "max_results": 60,
     }
 
     return templates.TemplateResponse(
@@ -299,33 +295,3 @@ async def job_detail(
     )
 
 
-@router.get("/jobs/{job_id}/events", response_class=HTMLResponse)
-async def job_events_partial(
-    job_id: str,
-    request: Request,
-    user: User = Depends(require_operator),
-) -> Response:
-    """HTMX partial — returns the events polling container for live polling."""
-    try:
-        parsed_id = uuid.UUID(job_id)
-    except ValueError:
-        return HTMLResponse("", status_code=404)
-
-    async with AsyncSession(request.app.state.engine) as db:
-        result = await _load_job_detail(db, parsed_id)
-
-    if result is None:
-        return HTMLResponse("", status_code=404)
-
-    _, job_data, events_data = result
-    response = templates.TemplateResponse(
-        request,
-        "jobs/_events_poll.html",
-        {"job": job_data, "events": events_data},
-    )
-    # When the job reaches a terminal state, tell HTMX to reload the full
-    # page so the status badge and record count update outside the poll div.
-    _terminal = {"completed", "completed_with_errors", "failed", "cancelled"}
-    if str(job_data["status"]) in _terminal:
-        response.headers["HX-Refresh"] = "true"
-    return response

@@ -21,9 +21,7 @@ var _projectsData = {{ projects | tojson }};
          projects: (typeof _projectsData !== 'undefined' ? _projectsData : []),
          templateSearch: '',
          templatePanelOpen: true,
-         maxPages: {{ default_config.max_pages_per_job }},
-         delayMs: {{ default_config.delay_between_requests_ms }},
-         maxDepth: {{ default_config.max_depth }},
+         maxResults: {{ default_config.max_results }},
          submitting: false,
          submitError: null,
          testing: false,
@@ -72,9 +70,7 @@ var _projectsData = {{ projects | tojson }};
              this.selectedGroupName = t.display_name;
              this.selectedGroupDescription = t.description;
              const cfg = t.config || {};
-             if (cfg.max_results != null) this.maxPages = cfg.max_results;
-             if (cfg.max_depth != null) this.maxDepth = cfg.max_depth;
-             if (cfg.delay_ms != null) this.delayMs = cfg.delay_ms;
+             if (cfg.max_results != null) this.maxResults = cfg.max_results;
          },
 
          canSubmit() {
@@ -94,9 +90,7 @@ var _projectsData = {{ projects | tojson }};
                          criteria_version_id: this.selectedVersionId,
                          project_id: this.projectId || null,
                          config: {
-                             max_pages_per_job: parseInt(this.maxPages),
-                             delay_between_requests_ms: parseInt(this.delayMs),
-                             max_depth: parseInt(this.maxDepth)
+                             max_results: parseInt(this.maxResults)
                          }
                      })
                  });
@@ -126,10 +120,7 @@ var _projectsData = {{ projects | tojson }};
                      body: JSON.stringify({
                          connector_id: this.connectorId,
                          criteria_version_id: this.selectedVersionId,
-                         config: {
-                             delay_between_requests_ms: parseInt(this.delayMs),
-                             max_depth: parseInt(this.maxDepth)
-                         }
+                         config: {}
                      })
                  });
                  const data = await resp.json();
@@ -248,69 +239,22 @@ var _projectsData = {{ projects | tojson }};
 
                 <!-- Config overrides -->
                 <div class="rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 shadow-sm p-5">
-                    <h2 class="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-4">Crawl Options</h2>
-                    <div class="space-y-5">
-
-                        <!-- Max sites -->
-                        <div>
-                            <div class="flex items-center justify-between mb-1">
-                                <label for="max-pages" class="text-sm font-medium text-gray-700 dark:text-gray-300">Max sites</label>
-                                <span class="text-xs text-gray-400 dark:text-gray-500" x-text="maxPages + ' sites'"></span>
-                            </div>
-                            <input
-                                id="max-pages"
-                                type="number"
-                                x-model="maxPages"
-                                min="1"
-                                max="10000"
-                                class="block w-full rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 px-3 py-2 text-sm text-gray-700 dark:text-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                                aria-describedby="max-pages-hint"
-                            >
-                            <p id="max-pages-hint" class="mt-1 text-xs text-gray-400 dark:text-gray-500">Maximum number of sites to crawl in this job.</p>
+                    <h2 class="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-4">Options</h2>
+                    <div>
+                        <div class="flex items-center justify-between mb-1">
+                            <label for="max-results" class="text-sm font-medium text-gray-700 dark:text-gray-300">Max results</label>
+                            <span class="text-xs text-gray-400 dark:text-gray-500" x-text="maxResults + ' records'"></span>
                         </div>
-
-                        <!-- Request delay -->
-                        <div>
-                            <div class="flex items-center justify-between mb-1">
-                                <label for="delay-ms" class="text-sm font-medium text-gray-700 dark:text-gray-300">Request delay</label>
-                                <span class="text-xs text-gray-400 dark:text-gray-500" x-text="delayMs + ' ms'"></span>
-                            </div>
-                            <input
-                                id="delay-ms"
-                                type="number"
-                                x-model="delayMs"
-                                min="0"
-                                max="30000"
-                                step="100"
-                                class="block w-full rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 px-3 py-2 text-sm text-gray-700 dark:text-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                                aria-describedby="delay-ms-hint"
-                            >
-                            <p id="delay-ms-hint" class="mt-1 text-xs text-gray-400 dark:text-gray-500">Pause between each request in milliseconds. Higher values are more polite to target servers.</p>
-                        </div>
-
-                        <!-- Crawl depth -->
-                        <div>
-                            <div class="flex items-center justify-between mb-1">
-                                <label for="max-depth" class="text-sm font-medium text-gray-700 dark:text-gray-300">Crawl depth</label>
-                                <span class="text-xs font-medium text-gray-600 dark:text-gray-300" x-text="maxDepth"></span>
-                            </div>
-                            <input
-                                id="max-depth"
-                                type="range"
-                                x-model="maxDepth"
-                                min="1"
-                                max="5"
-                                step="1"
-                                class="block w-full accent-blue-600"
-                                aria-describedby="max-depth-hint"
-                            >
-                            <div class="flex justify-between text-xs text-gray-400 dark:text-gray-500 mt-0.5">
-                                <span>Shallow (1)</span>
-                                <span>Deep (5)</span>
-                            </div>
-                            <p id="max-depth-hint" class="mt-1 text-xs text-gray-400 dark:text-gray-500">How many link-hops to follow from each discovered site.</p>
-                        </div>
-
+                        <input
+                            id="max-results"
+                            type="number"
+                            x-model="maxResults"
+                            min="1"
+                            max="200"
+                            class="block w-full rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 px-3 py-2 text-sm text-gray-700 dark:text-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                            aria-describedby="max-results-hint"
+                        >
+                        <p id="max-results-hint" class="mt-1 text-xs text-gray-400 dark:text-gray-500">How many records to fetch from the connector. Pre-filled from the template default.</p>
                     </div>
                 </div>
 

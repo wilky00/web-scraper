@@ -1,84 +1,124 @@
 {% extends "base.html" %}
 {% block title %}Job {{ job.id_short }}… — Web Scraper{% endblock %}
 {% block content %}
-<div class="min-h-screen p-8">
+<div class="min-h-screen p-8"
+     x-data="{
+         status: '{{ job.status }}',
+         recordCount: {{ job.record_count }},
+         events: {{ events | tojson }},
+         _active: ['queued','running','cancel_requested'],
+         get isActive() { return this._active.includes(this.status); },
+
+         init() {
+             if (this.isActive) this._schedulePoll();
+         },
+
+         _schedulePoll() {
+             setTimeout(() => this._poll(), 2000);
+         },
+
+         async _poll() {
+             try {
+                 const resp = await fetch('/api/jobs/{{ job.id }}');
+                 if (!resp.ok) return;
+                 const d = await resp.json();
+                 this.status = d.status;
+                 this.recordCount = d.record_count;
+                 this.events = d.events || [];
+             } catch (_) {}
+             if (this.isActive) this._schedulePoll();
+         },
+
+         statusBadgeClass() {
+             const m = {
+                 completed: 'bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-300',
+                 completed_with_errors: 'bg-yellow-100 dark:bg-yellow-900/30 text-yellow-800 dark:text-yellow-300',
+                 running: 'bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-300',
+                 failed: 'bg-red-100 dark:bg-red-900/30 text-red-800 dark:text-red-300',
+                 paused: 'bg-purple-100 dark:bg-purple-900/30 text-purple-800 dark:text-purple-300',
+             };
+             return m[this.status] || 'bg-orange-100 dark:bg-orange-900/30 text-orange-800 dark:text-orange-300';
+         },
+
+         statusLabel() {
+             const m = { completed_with_errors: 'completed (errors)' };
+             return m[this.status] || this.status;
+         },
+
+         async jobAction(url) {
+             try {
+                 const resp = await fetch(url, {
+                     method: 'POST',
+                     headers: { 'Content-Type': 'application/json' },
+                     body: JSON.stringify({ csrf_token: '{{ csrf_token }}' })
+                 });
+                 if (!resp.ok) {
+                     const d = await resp.json();
+                     alert(d.error || 'Action failed');
+                     return;
+                 }
+                 window.location.reload();
+             } catch (_) {
+                 alert('Network error — please try again.');
+             }
+         }
+     }">
     <div class="mx-auto max-w-6xl">
 
-        <!-- Back link -->
         <div class="mb-6">
             <a href="/jobs" class="text-sm text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200">← Back to Jobs</a>
         </div>
 
-        <!-- Header row: title + status badge + controls -->
         <div class="mb-8 flex flex-wrap items-start justify-between gap-4">
             <div>
                 <div class="flex items-center gap-3 flex-wrap">
                     <h1 class="font-mono text-2xl font-semibold tracking-tight text-gray-900 dark:text-gray-100">{{ job.id_short }}…</h1>
-                    <!-- Status badge -->
-                    {% if job.status == "completed" %}
-                    <span class="inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-300">completed</span>
-                    {% elif job.status == "completed_with_errors" %}
-                    <span class="inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium bg-yellow-100 dark:bg-yellow-900/30 text-yellow-800 dark:text-yellow-300">completed (errors)</span>
-                    {% elif job.status == "running" %}
-                    <span class="inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-300">running</span>
-                    {% elif job.status == "failed" %}
-                    <span class="inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium bg-red-100 dark:bg-red-900/30 text-red-800 dark:text-red-300">failed</span>
-                    {% elif job.status == "paused" %}
-                    <span class="inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium bg-purple-100 dark:bg-purple-900/30 text-purple-800 dark:text-purple-300">paused</span>
-                    {% elif job.status == "cancel_requested" or job.status == "cancelled" %}
-                    <span class="inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium bg-orange-100 dark:bg-orange-900/30 text-orange-800 dark:text-orange-300">{{ job.status }}</span>
-                    {% else %}
-                    <span class="inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400">{{ job.status }}</span>
-                    {% endif %}
+                    <span class="inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium"
+                          :class="statusBadgeClass()"
+                          x-text="statusLabel()"></span>
                 </div>
                 <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">{{ job.connector_name }} → {{ job.criteria_name }}</p>
             </div>
 
-            <!-- Control buttons — shown based on current status -->
             <div class="flex items-center gap-2">
-                {% if job.status == "running" %}
-                <form hx-post="/api/jobs/{{ job.id }}/pause">
-                    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-                    <button type="submit"
-                        class="rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 px-3 py-1.5 text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500">
-                        Pause
-                    </button>
-                </form>
-                <form hx-post="/api/jobs/{{ job.id }}/cancel">
-                    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-                    <button type="submit"
+                <template x-if="status === 'running'">
+                    <div class="flex items-center gap-2">
+                        <button type="button"
+                            @click="jobAction('/api/jobs/{{ job.id }}/pause')"
+                            class="rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 px-3 py-1.5 text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500">
+                            Pause
+                        </button>
+                        <button type="button"
+                            @click="jobAction('/api/jobs/{{ job.id }}/cancel')"
+                            class="rounded-md border border-red-300 dark:border-red-700 bg-white dark:bg-gray-800 px-3 py-1.5 text-sm font-medium text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 focus:outline-none focus:ring-2 focus:ring-red-500">
+                            Cancel
+                        </button>
+                    </div>
+                </template>
+                <template x-if="status === 'queued'">
+                    <button type="button"
+                        @click="jobAction('/api/jobs/{{ job.id }}/cancel')"
                         class="rounded-md border border-red-300 dark:border-red-700 bg-white dark:bg-gray-800 px-3 py-1.5 text-sm font-medium text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 focus:outline-none focus:ring-2 focus:ring-red-500">
                         Cancel
                     </button>
-                </form>
-                {% elif job.status == "queued" %}
-                <form hx-post="/api/jobs/{{ job.id }}/cancel">
-                    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-                    <button type="submit"
-                        class="rounded-md border border-red-300 dark:border-red-700 bg-white dark:bg-gray-800 px-3 py-1.5 text-sm font-medium text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 focus:outline-none focus:ring-2 focus:ring-red-500">
-                        Cancel
-                    </button>
-                </form>
-                {% elif job.status == "paused" %}
-                <form hx-post="/api/jobs/{{ job.id }}/resume">
-                    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-                    <button type="submit"
-                        class="rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 px-3 py-1.5 text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500">
-                        Resume
-                    </button>
-                </form>
-                <form hx-post="/api/jobs/{{ job.id }}/cancel">
-                    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-                    <button type="submit"
-                        class="rounded-md border border-red-300 dark:border-red-700 bg-white dark:bg-gray-800 px-3 py-1.5 text-sm font-medium text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 focus:outline-none focus:ring-2 focus:ring-red-500">
-                        Cancel
-                    </button>
-                </form>
-                {% endif %}
+                </template>
+                <template x-if="status === 'paused'">
+                    <div class="flex items-center gap-2">
+                        <button type="button"
+                            @click="jobAction('/api/jobs/{{ job.id }}/resume')"
+                            class="rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 px-3 py-1.5 text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500">
+                            Resume
+                        </button>
+                        <button type="button"
+                            @click="jobAction('/api/jobs/{{ job.id }}/cancel')"
+                            class="rounded-md border border-red-300 dark:border-red-700 bg-white dark:bg-gray-800 px-3 py-1.5 text-sm font-medium text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 focus:outline-none focus:ring-2 focus:ring-red-500">
+                            Cancel
+                        </button>
+                    </div>
+                </template>
             </div>
         </div>
 
-        <!-- Metadata grid -->
         <div class="mb-8 grid grid-cols-2 gap-4 sm:grid-cols-4">
             <div>
                 <p class="text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">Connector</p>
@@ -90,7 +130,7 @@
             </div>
             <div>
                 <p class="text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">Records</p>
-                <p class="mt-1 text-sm text-gray-900 dark:text-gray-100">{{ job.record_count }}</p>
+                <p class="mt-1 text-sm text-gray-900 dark:text-gray-100" x-text="recordCount"></p>
             </div>
             <div>
                 <p class="text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">Created</p>
@@ -98,8 +138,34 @@
             </div>
         </div>
 
-        <!-- Event log (with live polling while job is active) -->
-        {% include "jobs/_events_poll.html" %}
+        <div>
+            <h2 class="text-base font-semibold text-gray-900 dark:text-gray-100 mb-3">Event Log</h2>
+            <template x-if="events.length === 0">
+                <p class="text-sm text-gray-500 dark:text-gray-400">No events yet.</p>
+            </template>
+            <template x-if="events.length > 0">
+                <div class="overflow-hidden rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 shadow-sm">
+                    <table class="min-w-full divide-y divide-gray-200 dark:divide-gray-700 text-sm">
+                        <thead class="bg-gray-50 dark:bg-gray-900/50">
+                            <tr>
+                                <th scope="col" class="px-4 py-2 text-left text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400 w-24">Time</th>
+                                <th scope="col" class="px-4 py-2 text-left text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400 w-40">Event</th>
+                                <th scope="col" class="px-4 py-2 text-left text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">Message</th>
+                            </tr>
+                        </thead>
+                        <tbody class="divide-y divide-gray-100 dark:divide-gray-700/50">
+                            <template x-for="(e, i) in events" :key="i">
+                                <tr>
+                                    <td class="px-4 py-2 font-mono text-xs text-gray-500 dark:text-gray-400 whitespace-nowrap" x-text="e.created_at"></td>
+                                    <td class="px-4 py-2 font-mono text-xs text-gray-700 dark:text-gray-300 whitespace-nowrap" x-text="e.event_type"></td>
+                                    <td class="px-4 py-2 text-xs text-gray-600 dark:text-gray-400" x-text="e.message"></td>
+                                </tr>
+                            </template>
+                        </tbody>
+                    </table>
+                </div>
+            </template>
+        </div>
 
     </div>
 </div>
