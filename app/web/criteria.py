@@ -16,6 +16,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.auth.permissions import require_operator
 from app.auth.session import SESSION_COOKIE, get_session
 from app.models.criteria import CriteriaGroup, CriteriaVersion
+from app.models.project import Project
 from app.models.user import User
 from app.settings import Settings
 
@@ -70,6 +71,12 @@ async def criteria_list(
         )
         version_counts = {str(row.group_id): row.version_count for row in counts_result}
 
+        projects_result = await db.execute(select(Project).order_by(Project.name))
+        projects = [
+            {"id": str(p.id), "name": p.name}
+            for p in projects_result.scalars().all()
+        ]
+
     groups_data = [
         {
             "id": str(g.id),
@@ -79,6 +86,7 @@ async def criteria_list(
             "tags": g.tags,
             "is_active": g.is_active,
             "is_template": g.is_template,
+            "project_id": str(g.project_id) if g.project_id else "",
             "version_count": version_counts.get(str(g.id), 0),
             "created_at": (
                 g.created_at.isoformat() if hasattr(g, "created_at") and g.created_at else ""
@@ -90,7 +98,7 @@ async def criteria_list(
     return templates.TemplateResponse(
         request,
         "criteria/list.html",
-        {"groups": groups_data, "csrf_token": csrf_token, "user": user},
+        {"groups": groups_data, "csrf_token": csrf_token, "user": user, "projects": projects},
     )
 
 

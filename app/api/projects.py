@@ -17,8 +17,10 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.auth.permissions import require_operator
 from app.auth.session import SESSION_COOKIE, get_session
+from app.models.criteria import CriteriaGroup
 from app.models.job import CrawlJob
 from app.models.project import Project, ProjectApiKey
+from app.models.record import BusinessRecord
 from app.models.user import User
 from app.settings import Settings
 
@@ -209,3 +211,150 @@ async def revoke_project_key(
 
     logger.info("project_key.revoked", project_id=project_id, key_id=key_id)
     return Response(status_code=204)
+
+
+@router.patch("/api/projects/{project_id}")
+async def update_project(
+    project_id: str,
+    request: Request,
+    csrf_token: str = Form(default=""),
+    session_cookie: str | None = Cookie(default=None, alias=SESSION_COOKIE),
+    name: str = Form(default=""),
+    description: str = Form(default=""),
+    user: User = Depends(require_operator),
+) -> JSONResponse:
+    if not await _check_csrf(request, csrf_token, session_cookie):
+        return JSONResponse({"error": "Invalid CSRF token"}, status_code=403)
+
+    try:
+        parsed_project_id = uuid.UUID(project_id)
+    except ValueError:
+        return JSONResponse({"error": "Invalid project ID"}, status_code=422)
+
+    name = name.strip()
+    if not name:
+        return JSONResponse({"error": "Project name is required"}, status_code=422)
+
+    async with AsyncSession(request.app.state.engine) as db:
+        project: Project | None = await db.get(Project, parsed_project_id)
+        if project is None:
+            return JSONResponse({"error": "Project not found"}, status_code=404)
+
+        if project.name == "Default" and name != "Default":
+            return JSONResponse({"error": "Cannot rename the Default project"}, status_code=409)
+
+        project.name = name
+        project.description = description.strip() or None
+        await db.commit()
+        await db.refresh(project)
+
+    logger.info("project.updated", project_id=project_id, user_id=str(user.id))
+    return JSONResponse({"data": _project_to_dict(project), "errors": []})
+
+
+@router.delete("/api/projects/{project_id}")
+async def delete_project(
+    project_id: str,
+    request: Request,
+    csrf_token: str = Form(default=""),
+    session_cookie: str | None = Cookie(default=None, alias=SESSION_COOKIE),
+    user: User = Depends(require_operator),
+) -> Response:
+    if not await _check_csrf(request, csrf_token, session_cookie):
+        return JSONResponse({"error": "Invalid CSRF token"}, status_code=403)
+
+    try:
+        parsed_project_id = uuid.UUID(project_id)
+    except ValueError:
+        return JSONResponse({"error": "Invalid project ID"}, status_code=422)
+
+    async with AsyncSession(request.app.state.engine) as db:
+        project: Project | None = await db.get(Project, parsed_project_id)
+        if project is None:
+            return JSONResponse({"error": "Project not found"}, status_code=404)
+
+        if project.name == "Default":
+            return JSONResponse({"error": "Cannot delete the Default project"}, status_code=409)
+
+        # Soft-delete all records whose jobs belong to this project
+        job_ids_result = await db.execute(
+            select(CrawlJob.id).where(CrawlJob.project_id == parsed_project_id)
+        )
+        job_ids = [row[0] for row in job_ids_result.all()]
+
+        if job_ids:
+            records_result = await db.execute(
+                select(BusinessRecord).where(BusinessRecord.job_id.in_(job_ids))
+            )
+            for record in records_result.scalars():
+                record.status = "deleted"
+
+            # Unscope the jobs (keep them, just remove project association)
+            jobs_result = await db.execute(
+                select(CrawlJob).where(CrawlJob.project_id == parsed_project_id)
+            )
+            for job in jobs_result.scalars():
+                job.project_id = None
+
+        # Unscope any criteria groups tagged to this project
+        groups_result = await db.execute(
+            select(CriteriaGroup).where(CriteriaGroup.project_id == parsed_project_id)
+        )
+        for group in groups_result.scalars():
+            group.project_id = None
+
+        await db.delete(project)
+        await db.commit()
+
+    logger.info("project.deleted", project_id=project_id, user_id=str(user.id))
+    return Response(status_code=204)
+
+
+@router.post("/api/projects/{project_id}/move-jobs")
+async def move_project_jobs(
+    project_id: str,
+    request: Request,
+    user: User = Depends(require_operator),
+) -> JSONResponse:
+    try:
+        body = await request.json()
+    except Exception:
+        return JSONResponse({"error": "Invalid JSON body"}, status_code=422)
+
+    session_cookie = request.cookies.get(SESSION_COOKIE)
+    if not await _check_csrf(request, body.get("csrf_token", ""), session_cookie):
+        return JSONResponse({"error": "Invalid CSRF token"}, status_code=403)
+
+    try:
+        parsed_source_id = uuid.UUID(project_id)
+        parsed_target_id = uuid.UUID(body.get("target_project_id", ""))
+    except (ValueError, AttributeError):
+        return JSONResponse({"error": "Invalid project ID"}, status_code=422)
+
+    if parsed_source_id == parsed_target_id:
+        return JSONResponse({"error": "Source and target projects must differ"}, status_code=422)
+
+    async with AsyncSession(request.app.state.engine) as db:
+        source: Project | None = await db.get(Project, parsed_source_id)
+        target: Project | None = await db.get(Project, parsed_target_id)
+        if source is None or target is None:
+            return JSONResponse({"error": "Project not found"}, status_code=404)
+
+        jobs_result = await db.execute(
+            select(CrawlJob).where(CrawlJob.project_id == parsed_source_id)
+        )
+        moved = 0
+        for job in jobs_result.scalars():
+            job.project_id = parsed_target_id
+            moved += 1
+
+        await db.commit()
+
+    logger.info(
+        "project.jobs_moved",
+        source_id=project_id,
+        target_id=str(parsed_target_id),
+        moved=moved,
+        user_id=str(user.id),
+    )
+    return JSONResponse({"moved": moved, "errors": []})

@@ -23,6 +23,7 @@ from app.api.exports import router as api_exports_router
 from app.api.jobs import router as api_jobs_router
 from app.api.projects import router as api_projects_router
 from app.api.records import router as api_records_router
+from app.api.users import router as api_users_router
 from app.auth.oidc import load_oidc_discovery
 from app.auth.oidc import sso_enabled as _oidc_sso_enabled
 from app.auth.permissions import NotAuthenticatedException
@@ -31,6 +32,7 @@ from app.config.loader import ConfigLoadError, load_all_configs
 from app.connectors.seed import seed_connectors
 from app.criteria.seed import seed_example_criteria
 from app.models.user import User
+from app.projects.seed import seed_default_project
 from app.settings import Settings
 from app.web.audit import router as web_audit_router
 from app.web.auth import router as web_auth_router
@@ -78,6 +80,7 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         _seed_user = (await _db.execute(select(User).limit(1))).scalar_one_or_none()
     await seed_example_criteria(app.state.engine, _seed_user.id if _seed_user else None)
     await seed_connectors(app.state.engine, app.state.config.connectors.connectors)
+    await seed_default_project(app.state.engine)
 
     if app.state.config.ai and not app.state.config.ai.models:
         import json as _json
@@ -169,6 +172,7 @@ app.include_router(api_exports_router)
 app.include_router(api_jobs_router)
 app.include_router(api_projects_router)
 app.include_router(api_records_router)
+app.include_router(api_users_router)
 
 
 @app.get("/health", include_in_schema=False)

@@ -1,64 +1,332 @@
 {% extends "base.html" %}
-{% block title %}Projects — Web Scraper{% endblock %}
+{% block title %}Projects — Scrapy{% endblock %}
 {% block content %}
-<div class="min-h-screen p-8">
+<div
+    class="min-h-screen p-8"
+    x-data="{
+        showCreate: false,
+        editModal: false,
+        deleteModal: false,
+        moveModal: false,
+        activeProject: null,
+        deleteConfirm: '',
+        targetProjectId: '',
+        working: false,
+        openEdit(p) { this.activeProject = p; this.editModal = true; },
+        openDelete(p) { this.activeProject = p; this.deleteConfirm = ''; this.deleteModal = true; },
+        openMove(p) { this.activeProject = p; this.targetProjectId = ''; this.moveModal = true; },
+        async saveEdit() {
+            this.working = true;
+            const fd = new FormData();
+            fd.append('name', this.activeProject.name);
+            fd.append('description', this.activeProject.description);
+            fd.append('csrf_token', '{{ csrf_token }}');
+            const r = await fetch('/api/projects/' + this.activeProject.id, { method: 'PATCH', body: fd });
+            this.working = false;
+            if (r.ok) { window.location.reload(); }
+            else { const d = await r.json(); alert(d.error || 'Update failed'); }
+        },
+        async confirmDelete() {
+            if (this.deleteConfirm !== this.activeProject.name) return;
+            this.working = true;
+            const fd = new FormData();
+            fd.append('csrf_token', '{{ csrf_token }}');
+            const r = await fetch('/api/projects/' + this.activeProject.id, { method: 'DELETE', body: fd });
+            this.working = false;
+            if (r.ok) { window.location.reload(); }
+            else { const d = await r.json(); alert(d.error || 'Delete failed'); }
+        },
+        async confirmMove() {
+            if (!this.targetProjectId) return;
+            this.working = true;
+            const r = await fetch('/api/projects/' + this.activeProject.id + '/move-jobs', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ target_project_id: this.targetProjectId, csrf_token: '{{ csrf_token }}' })
+            });
+            this.working = false;
+            if (r.ok) { window.location.reload(); }
+            else { const d = await r.json(); alert(d.error || 'Move failed'); }
+        }
+    }"
+>
     <div class="mx-auto max-w-5xl">
 
         <div class="mb-6 flex items-center justify-between">
             <div>
                 <h1 class="text-2xl font-semibold tracking-tight text-gray-900 dark:text-gray-100">Projects</h1>
-                <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">Group jobs and issue scoped API keys for downstream systems.</p>
+                <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">Organize jobs, scope criteria templates, and issue API keys for downstream systems.</p>
             </div>
-            <a
-                href="/projects/new"
+            <button
+                @click="showCreate = !showCreate"
                 class="inline-flex items-center rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
-            >New Project</a>
+                :aria-expanded="showCreate"
+            >
+                <svg class="mr-1.5 h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/>
+                </svg>
+                New Project
+            </button>
         </div>
 
-        {% if not projects %}
-        <div class="rounded-lg border border-dashed border-gray-300 dark:border-gray-700 p-12 text-center">
-            <p class="text-sm font-medium text-gray-900 dark:text-gray-100">No projects yet</p>
-            <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">Create a project to group jobs and generate scoped API keys for downstream access.</p>
-            <a href="/projects/new" class="mt-4 inline-flex items-center rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700">New Project</a>
+        <!-- Inline create form -->
+        <div
+            x-show="showCreate"
+            x-transition:enter="transition ease-out duration-150"
+            x-transition:enter-start="opacity-0 -translate-y-2"
+            x-transition:enter-end="opacity-100 translate-y-0"
+            class="mb-6 rounded-lg border border-blue-200 dark:border-blue-800 bg-blue-50 dark:bg-blue-900/20 p-5"
+        >
+            <h2 class="text-sm font-semibold text-gray-900 dark:text-gray-100 mb-4">Create Project</h2>
+            <form
+                hx-post="/api/projects"
+                hx-target="body"
+                hx-push-url="true"
+                class="space-y-4"
+            >
+                <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div>
+                        <label for="new-project-name" class="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">Name <span class="text-red-500" aria-hidden="true">*</span></label>
+                        <input
+                            id="new-project-name"
+                            type="text"
+                            name="name"
+                            required
+                            placeholder="e.g. Website Builder"
+                            class="w-full rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 px-3 py-1.5 text-sm text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        >
+                    </div>
+                    <div>
+                        <label for="new-project-desc" class="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">Description</label>
+                        <input
+                            id="new-project-desc"
+                            type="text"
+                            name="description"
+                            placeholder="Optional short description"
+                            class="w-full rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 px-3 py-1.5 text-sm text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        >
+                    </div>
+                </div>
+                <div class="flex gap-3">
+                    <button type="submit" class="rounded-md bg-blue-600 px-4 py-1.5 text-sm font-medium text-white hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500">Create</button>
+                    <button type="button" @click="showCreate = false" class="rounded-md border border-gray-300 dark:border-gray-600 px-4 py-1.5 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 focus:outline-none focus:ring-2 focus:ring-blue-500">Cancel</button>
+                </div>
+            </form>
         </div>
-        {% else %}
+
+        <!-- Projects table -->
         <div class="overflow-hidden rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 shadow-sm">
             <table class="min-w-full divide-y divide-gray-200 dark:divide-gray-700 text-sm">
                 <thead class="bg-gray-50 dark:bg-gray-900/50">
                     <tr>
                         <th scope="col" class="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">Name</th>
+                        <th scope="col" class="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">API Key</th>
+                        <th scope="col" class="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">Templates</th>
                         <th scope="col" class="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">Jobs</th>
-                        <th scope="col" class="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">Active Keys</th>
-                        <th scope="col" class="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">Created</th>
+                        <th scope="col" class="relative px-6 py-3"><span class="sr-only">Actions</span></th>
                     </tr>
                 </thead>
                 <tbody class="divide-y divide-gray-100 dark:divide-gray-700/50">
                     {% for project in projects %}
-                    <tr class="hover:bg-gray-50 dark:hover:bg-gray-700/30 transition-colors">
+                    <tr class="hover:bg-gray-50 dark:hover:bg-gray-700/30 transition-colors" x-data="{ menuOpen: false }">
                         <td class="px-6 py-4">
                             <a href="/projects/{{ project.id }}" class="font-medium text-blue-600 dark:text-blue-400 hover:underline">{{ project.name }}</a>
+                            {% if project.is_default %}
+                            <span class="ml-1.5 inline-flex items-center rounded-full bg-gray-100 dark:bg-gray-700 px-1.5 py-0.5 text-xs font-medium text-gray-500 dark:text-gray-400">default</span>
+                            {% endif %}
                             {% if project.description %}
-                            <div class="text-xs text-gray-400 dark:text-gray-500 truncate max-w-xs">{{ project.description }}</div>
+                            <div class="text-xs text-gray-400 dark:text-gray-500 truncate max-w-xs mt-0.5">{{ project.description }}</div>
+                            {% endif %}
+                        </td>
+                        <td class="px-6 py-4">
+                            {% if project.has_api_key %}
+                            <span class="inline-flex items-center gap-1 rounded-full bg-green-100 dark:bg-green-900/30 px-2 py-0.5 text-xs font-medium text-green-700 dark:text-green-400">
+                                <span class="h-1.5 w-1.5 rounded-full bg-green-500" aria-hidden="true"></span>
+                                Active
+                            </span>
+                            {% else %}
+                            <span class="inline-flex items-center gap-1 rounded-full bg-gray-100 dark:bg-gray-700 px-2 py-0.5 text-xs font-medium text-gray-500 dark:text-gray-400">
+                                <span class="h-1.5 w-1.5 rounded-full bg-gray-400" aria-hidden="true"></span>
+                                None
+                            </span>
+                            {% endif %}
+                        </td>
+                        <td class="px-6 py-4 text-gray-700 dark:text-gray-300">
+                            {% if project.template_count > 0 %}
+                            {{ project.template_count }}
+                            {% else %}
+                            <span class="text-gray-400 dark:text-gray-500">—</span>
                             {% endif %}
                         </td>
                         <td class="px-6 py-4 text-gray-700 dark:text-gray-300">{{ project.job_count }}</td>
-                        <td class="px-6 py-4">
-                            {% if project.key_count > 0 %}
-                            <span class="inline-flex items-center gap-1 rounded-full bg-green-100 dark:bg-green-900/30 px-2 py-0.5 text-xs font-medium text-green-700 dark:text-green-400">
-                                {{ project.key_count }} active
-                            </span>
-                            {% else %}
-                            <span class="text-gray-400 dark:text-gray-500 text-xs">none</span>
-                            {% endif %}
+                        <td class="px-6 py-4 text-right relative">
+                            <button
+                                @click.stop="menuOpen = !menuOpen"
+                                type="button"
+                                class="rounded p-1 text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                aria-label="Project actions for {{ project.name }}"
+                                :aria-expanded="menuOpen"
+                            >
+                                <svg class="h-4 w-4" fill="currentColor" viewBox="0 0 20 20" aria-hidden="true">
+                                    <path d="M10 6a2 2 0 110-4 2 2 0 010 4zM10 12a2 2 0 110-4 2 2 0 010 4zM10 18a2 2 0 110-4 2 2 0 010 4z"/>
+                                </svg>
+                            </button>
+                            <div
+                                x-show="menuOpen"
+                                @click.outside="menuOpen = false"
+                                x-transition:enter="transition ease-out duration-100"
+                                x-transition:enter-start="opacity-0 scale-95"
+                                x-transition:enter-end="opacity-100 scale-100"
+                                class="absolute right-6 top-10 z-20 w-40 rounded-md border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-800 shadow-lg py-1"
+                                role="menu"
+                            >
+                                <button
+                                    @click="menuOpen = false; openEdit({ id: '{{ project.id }}', name: '{{ project.name | replace("'", "\\'") }}', description: '{{ (project.description or '') | replace("'", "\\'") }}' })"
+                                    class="w-full text-left px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700"
+                                    role="menuitem"
+                                >Edit</button>
+                                <button
+                                    @click="menuOpen = false; openMove({ id: '{{ project.id }}', name: '{{ project.name | replace("'", "\\'") }}' })"
+                                    class="w-full text-left px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700"
+                                    role="menuitem"
+                                >Move Records</button>
+                                {% if not project.is_default %}
+                                <button
+                                    @click="menuOpen = false; openDelete({ id: '{{ project.id }}', name: '{{ project.name | replace("'", "\\'") }}' })"
+                                    class="w-full text-left px-4 py-2 text-sm text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20"
+                                    role="menuitem"
+                                >Delete</button>
+                                {% endif %}
+                            </div>
                         </td>
-                        <td class="px-6 py-4 text-gray-500 dark:text-gray-400">{{ project.created_at }}</td>
                     </tr>
                     {% endfor %}
+                    {% if not projects %}
+                    <tr>
+                        <td colspan="5" class="px-6 py-10 text-center text-sm text-gray-400 dark:text-gray-500">
+                            No projects yet. Create one above.
+                        </td>
+                    </tr>
+                    {% endif %}
                 </tbody>
             </table>
         </div>
-        {% endif %}
 
     </div>
+
+    <!-- Edit Modal -->
+    <div
+        x-show="editModal"
+        class="fixed inset-0 z-30 flex items-center justify-center"
+        @keydown.escape.window="editModal = false"
+        role="dialog"
+        aria-modal="true"
+        :aria-label="'Edit project ' + (activeProject ? activeProject.name : '')"
+    >
+        <div class="absolute inset-0 bg-black/40" @click="editModal = false" aria-hidden="true"></div>
+        <div class="relative z-10 w-full max-w-md rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 shadow-xl p-6">
+            <h2 class="text-base font-semibold text-gray-900 dark:text-gray-100 mb-4">Edit Project</h2>
+            <div class="space-y-3">
+                <div>
+                    <label class="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">Name <span class="text-red-500" aria-hidden="true">*</span></label>
+                    <input
+                        type="text"
+                        x-model="activeProject && activeProject.name"
+                        :disabled="activeProject && activeProject.name === 'Default'"
+                        class="w-full rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 px-3 py-1.5 text-sm text-gray-900 dark:text-gray-100 disabled:opacity-50 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    >
+                    <template x-if="activeProject && activeProject.name === 'Default'">
+                        <p class="mt-1 text-xs text-gray-400">The Default project name cannot be changed.</p>
+                    </template>
+                </div>
+                <div>
+                    <label class="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">Description</label>
+                    <input
+                        type="text"
+                        x-model="activeProject && activeProject.description"
+                        class="w-full rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 px-3 py-1.5 text-sm text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    >
+                </div>
+            </div>
+            <div class="mt-5 flex justify-end gap-3">
+                <button @click="editModal = false" class="rounded-md border border-gray-300 dark:border-gray-600 px-4 py-1.5 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 focus:outline-none focus:ring-2 focus:ring-blue-500">Cancel</button>
+                <button @click="saveEdit()" :disabled="working" class="rounded-md bg-blue-600 px-4 py-1.5 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50 focus:outline-none focus:ring-2 focus:ring-blue-500">Save</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Move Records Modal -->
+    <div
+        x-show="moveModal"
+        class="fixed inset-0 z-30 flex items-center justify-center"
+        @keydown.escape.window="moveModal = false"
+        role="dialog"
+        aria-modal="true"
+    >
+        <div class="absolute inset-0 bg-black/40" @click="moveModal = false" aria-hidden="true"></div>
+        <div class="relative z-10 w-full max-w-md rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 shadow-xl p-6">
+            <h2 class="text-base font-semibold text-gray-900 dark:text-gray-100 mb-1">Move Records</h2>
+            <p class="text-sm text-gray-500 dark:text-gray-400 mb-4">Reassigns all jobs from <strong x-text="activeProject && activeProject.name"></strong> to the target project. Records remain intact.</p>
+            <div>
+                <label class="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">Target Project</label>
+                <select
+                    x-model="targetProjectId"
+                    class="w-full rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 px-3 py-1.5 text-sm text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    aria-required="true"
+                >
+                    <option value="">— select a project —</option>
+                    {% for p in projects %}
+                    <option
+                        value="{{ p.id }}"
+                        x-bind:hidden="activeProject && activeProject.id === '{{ p.id }}'"
+                    >{{ p.name }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="mt-5 flex justify-end gap-3">
+                <button @click="moveModal = false" class="rounded-md border border-gray-300 dark:border-gray-600 px-4 py-1.5 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 focus:outline-none focus:ring-2 focus:ring-blue-500">Cancel</button>
+                <button @click="confirmMove()" :disabled="!targetProjectId || working" class="rounded-md bg-blue-600 px-4 py-1.5 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50 focus:outline-none focus:ring-2 focus:ring-blue-500">Move</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Delete Modal -->
+    <div
+        x-show="deleteModal"
+        class="fixed inset-0 z-30 flex items-center justify-center"
+        @keydown.escape.window="deleteModal = false"
+        role="dialog"
+        aria-modal="true"
+    >
+        <div class="absolute inset-0 bg-black/40" @click="deleteModal = false" aria-hidden="true"></div>
+        <div class="relative z-10 w-full max-w-md rounded-lg border border-red-200 dark:border-red-800 bg-white dark:bg-gray-800 shadow-xl p-6">
+            <h2 class="text-base font-semibold text-red-700 dark:text-red-400 mb-1">Delete Project</h2>
+            <p class="text-sm text-gray-600 dark:text-gray-300 mb-3">
+                All records from jobs in <strong x-text="activeProject && activeProject.name"></strong> will be <strong>soft-deleted</strong> (status set to "deleted"). Jobs will be unscoped. This cannot be undone.
+            </p>
+            <div>
+                <label class="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">
+                    Type <code class="font-mono bg-gray-100 dark:bg-gray-700 px-1 rounded" x-text="activeProject && activeProject.name"></code> to confirm
+                </label>
+                <input
+                    type="text"
+                    x-model="deleteConfirm"
+                    class="w-full rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 px-3 py-1.5 text-sm text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-red-500"
+                    :placeholder="activeProject && activeProject.name"
+                    aria-required="true"
+                >
+            </div>
+            <div class="mt-5 flex justify-end gap-3">
+                <button @click="deleteModal = false" class="rounded-md border border-gray-300 dark:border-gray-600 px-4 py-1.5 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 focus:outline-none focus:ring-2 focus:ring-blue-500">Cancel</button>
+                <button
+                    @click="confirmDelete()"
+                    :disabled="deleteConfirm !== (activeProject && activeProject.name) || working"
+                    class="rounded-md bg-red-600 px-4 py-1.5 text-sm font-medium text-white hover:bg-red-700 disabled:opacity-50 focus:outline-none focus:ring-2 focus:ring-red-500"
+                >Delete Project</button>
+            </div>
+        </div>
+    </div>
+
 </div>
 {% endblock %}

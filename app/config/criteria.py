@@ -34,6 +34,7 @@ class CriteriaMetadata(BaseModel):
     display_name: str
     description: str = ""
     tags: list[str] = []
+    project: str | None = None
 
 
 class QueryField(BaseModel):

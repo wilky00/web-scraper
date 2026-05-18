@@ -8,25 +8,30 @@
             <h1 class="text-2xl font-semibold tracking-tight text-gray-900 dark:text-gray-100">Dashboard</h1>
             <div class="flex gap-3">
                 <a
-                    href="/jobs/new"
+                    href="/projects?create=1"
                     class="rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    aria-label="Create a new project"
+                >New Project</a>
+                <a
+                    href="/jobs/new"
+                    class="rounded-md border border-gray-300 dark:border-gray-600 px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 focus:outline-none focus:ring-2 focus:ring-blue-500"
                     aria-label="Start new crawl job"
                 >New Job</a>
                 <a
                     href="/records"
                     class="rounded-md border border-gray-300 dark:border-gray-600 px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 focus:outline-none focus:ring-2 focus:ring-blue-500"
                 >Browse Records</a>
-                <a
-                    href="/criteria/new"
-                    class="rounded-md border border-gray-300 dark:border-gray-600 px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                >Manage Criteria</a>
             </div>
         </div>
 
-        <!-- Record count badges -->
-        <section aria-labelledby="record-counts-heading" class="mb-10">
-            <h2 id="record-counts-heading" class="text-sm font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-4">Records</h2>
-            <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4">
+        <!-- Stats row -->
+        <section aria-labelledby="stats-heading" class="mb-10">
+            <h2 id="stats-heading" class="text-sm font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-4">Overview</h2>
+            <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-4">
+                <a href="/projects" class="rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 p-4 hover:border-blue-400 dark:hover:border-blue-500 transition-colors">
+                    <p class="text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Projects</p>
+                    <p class="text-2xl font-bold text-blue-600 dark:text-blue-400">{{ project_count }}</p>
+                </a>
                 <div class="rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 p-4">
                     <p class="text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Total</p>
                     <p class="text-2xl font-bold text-gray-900 dark:text-gray-100">{{ total_records }}</p>
@@ -57,9 +62,24 @@
             <div class="flex flex-col md:flex-row items-stretch gap-3">
 
                 <!-- Step 1 -->
-                <a href="/criteria/new" class="group flex-1 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 p-5 hover:border-blue-400 dark:hover:border-blue-500 hover:shadow-sm transition-all focus:outline-none focus:ring-2 focus:ring-blue-500">
+                <a href="/projects" class="group flex-1 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 p-5 hover:border-blue-400 dark:hover:border-blue-500 hover:shadow-sm transition-all focus:outline-none focus:ring-2 focus:ring-blue-500">
                     <div class="flex items-center gap-3 mb-2">
                         <span class="flex h-8 w-8 items-center justify-center rounded-full bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 text-sm font-bold">1</span>
+                        <h3 class="text-sm font-semibold text-gray-900 dark:text-gray-100">Organize in Projects</h3>
+                    </div>
+                    <p class="text-xs text-gray-500 dark:text-gray-400">Create a project to group jobs, scope criteria templates, and generate API keys for downstream systems.</p>
+                    <p class="mt-3 text-xs text-blue-600 dark:text-blue-400 group-hover:underline">Manage projects &rarr;</p>
+                </a>
+
+                <!-- Arrow -->
+                <div class="hidden md:flex items-center text-gray-300 dark:text-gray-600 flex-shrink-0" aria-hidden="true">
+                    <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg>
+                </div>
+
+                <!-- Step 2 -->
+                <a href="/criteria/new" class="group flex-1 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 p-5 hover:border-blue-400 dark:hover:border-blue-500 hover:shadow-sm transition-all focus:outline-none focus:ring-2 focus:ring-blue-500">
+                    <div class="flex items-center gap-3 mb-2">
+                        <span class="flex h-8 w-8 items-center justify-center rounded-full bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 text-sm font-bold">2</span>
                         <h3 class="text-sm font-semibold text-gray-900 dark:text-gray-100">Set Search Criteria</h3>
                     </div>
                     <p class="text-xs text-gray-500 dark:text-gray-400">Define what to look for — business type, location, scoring rules, and crawl settings.</p>
@@ -71,10 +91,10 @@
                     <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg>
                 </div>
 
-                <!-- Step 2 -->
+                <!-- Step 3 -->
                 <a href="/jobs" class="group flex-1 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 p-5 hover:border-blue-400 dark:hover:border-blue-500 hover:shadow-sm transition-all focus:outline-none focus:ring-2 focus:ring-blue-500">
                     <div class="flex items-center gap-3 mb-2">
-                        <span class="flex h-8 w-8 items-center justify-center rounded-full bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 text-sm font-bold">2</span>
+                        <span class="flex h-8 w-8 items-center justify-center rounded-full bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 text-sm font-bold">3</span>
                         <h3 class="text-sm font-semibold text-gray-900 dark:text-gray-100">Run Web Crawls</h3>
                     </div>
                     <p class="text-xs text-gray-500 dark:text-gray-400">Pick a criteria template, choose a connector, and launch a crawl job to gather leads.</p>
@@ -86,10 +106,10 @@
                     <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg>
                 </div>
 
-                <!-- Step 3 -->
+                <!-- Step 4 -->
                 <a href="/records" class="group flex-1 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 p-5 hover:border-blue-400 dark:hover:border-blue-500 hover:shadow-sm transition-all focus:outline-none focus:ring-2 focus:ring-blue-500">
                     <div class="flex items-center gap-3 mb-2">
-                        <span class="flex h-8 w-8 items-center justify-center rounded-full bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 text-sm font-bold">3</span>
+                        <span class="flex h-8 w-8 items-center justify-center rounded-full bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 text-sm font-bold">4</span>
                         <h3 class="text-sm font-semibold text-gray-900 dark:text-gray-100">Review Results</h3>
                     </div>
                     <p class="text-xs text-gray-500 dark:text-gray-400">Browse, filter, and manage the business records collected by your crawl jobs.</p>
@@ -101,10 +121,10 @@
                     <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg>
                 </div>
 
-                <!-- Step 4 -->
+                <!-- Step 5 -->
                 <a href="/exports" class="group flex-1 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 p-5 hover:border-blue-400 dark:hover:border-blue-500 hover:shadow-sm transition-all focus:outline-none focus:ring-2 focus:ring-blue-500">
                     <div class="flex items-center gap-3 mb-2">
-                        <span class="flex h-8 w-8 items-center justify-center rounded-full bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 text-sm font-bold">4</span>
+                        <span class="flex h-8 w-8 items-center justify-center rounded-full bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 text-sm font-bold">5</span>
                         <h3 class="text-sm font-semibold text-gray-900 dark:text-gray-100">Export &amp; Integrate</h3>
                     </div>
                     <p class="text-xs text-gray-500 dark:text-gray-400">Download results as CSV/JSON or connect external systems via the REST API.</p>

@@ -5,11 +5,13 @@
 // Move Alpine component definition out of x-data attribute — unescaped < / > inside HTML
 // attributes break the parser and leak raw JS onto the page.
 document.addEventListener('alpine:init', () => {
-    Alpine.data('criteriaList', (items, csrfToken) => ({
+    Alpine.data('criteriaList', (items, csrfToken, projects) => ({
         items,
         csrfToken,
+        projects,
         search: '',
         selectedTags: [],
+        projectFilter: 'all',
         sortBy: 'display_name',
         sortDir: 'asc',
         get allTags() {
@@ -21,6 +23,9 @@ document.addEventListener('alpine:init', () => {
         },
         get filtered() {
             let list = this.items;
+            if (this.projectFilter !== 'all') {
+                list = list.filter(g => g.project_id === this.projectFilter);
+            }
             if (this.search) {
                 const q = this.search.toLowerCase();
                 list = list.filter(g =>
@@ -97,7 +102,7 @@ document.addEventListener('alpine:init', () => {
 </script>
 {% endblock %}
 {% block content %}
-<div class="min-h-screen p-8" x-data="criteriaList({{ groups | tojson }}, '{{ csrf_token }}')">
+<div class="min-h-screen p-8" x-data="criteriaList({{ groups | tojson }}, '{{ csrf_token }}', {{ projects | tojson }})">
     <div class="mx-auto max-w-6xl">
 
         <!-- Header -->
@@ -130,6 +135,20 @@ document.addEventListener('alpine:init', () => {
 
         <!-- Filter bar -->
         <div class="mb-4 space-y-3">
+            <div class="flex items-center gap-3">
+                <label for="criteria-project-filter" class="text-sm text-gray-600 dark:text-gray-400 whitespace-nowrap">Project</label>
+                <select
+                    id="criteria-project-filter"
+                    x-model="projectFilter"
+                    class="rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 px-3 py-1.5 text-sm text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                >
+                    <option value="all">All Projects</option>
+                    <option value="">Default (global)</option>
+                    <template x-for="p in projects" :key="p.id">
+                        <option :value="p.id" x-text="p.name"></option>
+                    </template>
+                </select>
+            </div>
             <div class="relative">
                 <input
                     type="search"

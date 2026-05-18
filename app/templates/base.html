@@ -12,7 +12,9 @@
     <script>
         document.addEventListener('alpine:init', () => {
             Alpine.store('theme', {
-                dark: localStorage.getItem('theme') === 'dark',
+                dark: localStorage.getItem('theme') !== null
+                    ? localStorage.getItem('theme') === 'dark'
+                    : window.matchMedia('(prefers-color-scheme: dark)').matches,
                 toggle() {
                     this.dark = !this.dark;
                     localStorage.setItem('theme', this.dark ? 'dark' : 'light');
@@ -62,6 +64,10 @@
                         class="rounded-md px-3 py-1.5 text-sm font-medium {% if request.url.path == '/' %}text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-900/20{% else %}text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 hover:text-gray-900 dark:hover:text-gray-100{% endif %}"
                     >Dashboard</a>
                     <a
+                        href="/projects"
+                        class="rounded-md px-3 py-1.5 text-sm font-medium {% if request.url.path.startswith('/projects') %}text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-900/20{% else %}text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 hover:text-gray-900 dark:hover:text-gray-100{% endif %}"
+                    >Projects</a>
+                    <a
                         href="/criteria/new"
                         class="rounded-md px-3 py-1.5 text-sm font-medium {% if request.url.path.startswith('/criteria') %}text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-900/20{% else %}text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 hover:text-gray-900 dark:hover:text-gray-100{% endif %}"
                     >Criteria</a>
@@ -73,10 +79,6 @@
                         href="/records"
                         class="rounded-md px-3 py-1.5 text-sm font-medium {% if request.url.path.startswith('/records') %}text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-900/20{% else %}text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 hover:text-gray-900 dark:hover:text-gray-100{% endif %}"
                     >Records</a>
-                    <a
-                        href="/projects"
-                        class="rounded-md px-3 py-1.5 text-sm font-medium {% if request.url.path.startswith('/projects') %}text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-900/20{% else %}text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 hover:text-gray-900 dark:hover:text-gray-100{% endif %}"
-                    >Projects</a>
                     <a
                         href="/exports"
                         class="rounded-md px-3 py-1.5 text-sm font-medium {% if request.url.path.startswith('/exports') %}text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-900/20{% else %}text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 hover:text-gray-900 dark:hover:text-gray-100{% endif %}"

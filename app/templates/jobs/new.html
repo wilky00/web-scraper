@@ -3,6 +3,8 @@
 {% block head %}
 <script>
 var _templateData = {{ criteria_groups | tojson }};
+var _connectorsData = {{ connectors | tojson }};
+var _projectsData = {{ projects | tojson }};
 </script>
 {% endblock %}
 {% block content %}
@@ -14,7 +16,11 @@ var _templateData = {{ criteria_groups | tojson }};
          selectedGroupName: null,
          selectedGroupDescription: '',
          connectorId: '',
-         projectId: '',
+         projectId: '{{ default_project_id }}',
+         connectors: (typeof _connectorsData !== 'undefined' ? _connectorsData : []),
+         projects: (typeof _projectsData !== 'undefined' ? _projectsData : []),
+         templateSearch: '',
+         templatePanelOpen: true,
          maxPages: {{ default_config.max_pages_per_job }},
          delayMs: {{ default_config.delay_between_requests_ms }},
          maxDepth: {{ default_config.max_depth }},
@@ -24,6 +30,41 @@ var _templateData = {{ criteria_groups | tojson }};
          testStatus: null,
          testResults: [],
          testError: null,
+
+         get selectedProjectName() {
+             if (!this.projectId) return '';
+             const p = this.projects.find(x => x.id === this.projectId);
+             return p ? p.name : '';
+         },
+
+         get filteredConnectors() {
+             return this.connectors.filter(c => {
+                 if (!c.projects || c.projects.length === 0) return true;
+                 if (!this.projectId) return true;
+                 return c.projects.includes(this.selectedProjectName);
+             });
+         },
+
+         filteredTemplates() {
+             var templates = (typeof _templateData !== 'undefined' ? _templateData : []);
+             var pid = this.projectId;
+             if (pid) {
+                 templates = templates.filter(t => t.project_id === '' || t.project_id === pid);
+             }
+             if (this.templateSearch) {
+                 var q = this.templateSearch.toLowerCase();
+                 templates = templates.filter(t =>
+                     ((t.display_name || '') + ' ' + (t.description || '') + ' ' + (t.tags || []).join(' ')).toLowerCase().includes(q)
+                 );
+             }
+             return [...templates].sort((a, b) => {
+                 const aMatch = pid && a.project_id === pid;
+                 const bMatch = pid && b.project_id === pid;
+                 if (aMatch && !bMatch) return -1;
+                 if (!aMatch && bMatch) return 1;
+                 return (a.display_name || '').localeCompare(b.display_name || '');
+             });
+         },
 
          selectTemplate(t) {
              this.selectedGroupId = t.id;
@@ -145,42 +186,43 @@ var _templateData = {{ criteria_groups | tojson }};
             <!-- ── Left column: form ─────────────────────────────────────────── -->
             <div class="lg:col-span-2 space-y-5">
 
-                <!-- Connector -->
+                <!-- Project -->
                 <div class="rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 shadow-sm p-5">
-                    <h2 class="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3">Connector</h2>
-                    {% if connectors %}
-                    <select
-                        x-model="connectorId"
-                        class="block w-full rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 px-3 py-2 text-sm text-gray-700 dark:text-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                        aria-label="Select connector"
-                    >
-                        <option value="">Select a connector…</option>
-                        {% for c in connectors %}
-                        <option value="{{ c.id }}">{{ c.name }} ({{ c.connector_type }})</option>
-                        {% endfor %}
-                    </select>
-                    {% else %}
-                    <p class="text-sm text-gray-400 dark:text-gray-500">No active connectors configured. Add one in <a href="/settings" class="text-blue-600 dark:text-blue-400 hover:underline">Settings</a>.</p>
-                    {% endif %}
-                </div>
-
-                <!-- Project (optional) -->
-                {% if projects %}
-                <div class="rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 shadow-sm p-5">
-                    <h2 class="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-1">Project <span class="text-xs font-normal text-gray-400">(optional)</span></h2>
-                    <p class="text-xs text-gray-400 dark:text-gray-500 mb-3">Assign this job to a project so its records are accessible via a project-scoped API key.</p>
+                    <h2 class="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-1">Project</h2>
+                    <p class="text-xs text-gray-400 dark:text-gray-500 mb-3">Assign this job to a project. Templates and connectors are filtered to match the selected project.</p>
                     <select
                         x-model="projectId"
                         class="block w-full rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 px-3 py-2 text-sm text-gray-700 dark:text-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-500"
                         aria-label="Assign to project"
                     >
-                        <option value="">No project</option>
-                        {% for p in projects %}
-                        <option value="{{ p.id }}">{{ p.name }}</option>
-                        {% endfor %}
+                        <template x-for="p in projects" :key="p.id">
+                            <option :value="p.id" x-text="p.name"></option>
+                        </template>
                     </select>
                 </div>
-                {% endif %}
+
+                <!-- Connector -->
+                <div class="rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 shadow-sm p-5">
+                    <h2 class="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3">Connector</h2>
+                    <template x-if="filteredConnectors.length > 0">
+                        <select
+                            x-model="connectorId"
+                            class="block w-full rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 px-3 py-2 text-sm text-gray-700 dark:text-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                            aria-label="Select connector"
+                        >
+                            <option value="">Select a connector…</option>
+                            <template x-for="c in filteredConnectors" :key="c.id">
+                                <option :value="c.id" x-text="c.name + ' (' + c.connector_type + ')'"></option>
+                            </template>
+                        </select>
+                    </template>
+                    <template x-if="filteredConnectors.length === 0 && connectors.length > 0">
+                        <p class="text-sm text-gray-400 dark:text-gray-500">No connectors available for this project. <a href="/settings" class="text-blue-600 dark:text-blue-400 hover:underline">Configure one in Settings</a> or select a different project.</p>
+                    </template>
+                    <template x-if="connectors.length === 0">
+                        <p class="text-sm text-gray-400 dark:text-gray-500">No active connectors configured. Add one in <a href="/settings" class="text-blue-600 dark:text-blue-400 hover:underline">Settings</a>.</p>
+                    </template>
+                </div>
 
                 <!-- Selected template -->
                 <div class="rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 shadow-sm p-5">
@@ -409,41 +451,28 @@ var _templateData = {{ criteria_groups | tojson }};
 
             <!-- ── Right column: template picker ────────────────────────────── -->
             <div class="space-y-4">
-                <div class="rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 shadow-sm overflow-hidden"
-                     x-data="{
-                         open: true,
-                         search: '',
-                         templates: (typeof _templateData !== 'undefined' ? _templateData : []),
-                         filtered() {
-                             if (!this.search) return this.templates;
-                             var q = this.search.toLowerCase();
-                             return this.templates.filter(function(t) {
-                                 return ((t.display_name || '') + ' ' + (t.description || '') + ' ' + (t.tags || []).join(' ')).toLowerCase().indexOf(q) !== -1;
-                             });
-                         }
-                     }">
+                <div class="rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 shadow-sm overflow-hidden">
                     <div class="px-4 py-3 border-b border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900/50 cursor-pointer select-none flex items-center justify-between"
-                         @click="open = !open">
+                         @click="templatePanelOpen = !templatePanelOpen">
                         <h2 class="text-sm font-semibold text-gray-700 dark:text-gray-300">
                             Templates
-                            {% if criteria_groups %}<span class="ml-1.5 text-xs font-normal text-gray-400 dark:text-gray-500">({{ criteria_groups|length }})</span>{% endif %}
+                            <span class="ml-1.5 text-xs font-normal text-gray-400 dark:text-gray-500" x-text="'(' + filteredTemplates().length + ')'"></span>
                         </h2>
                         <svg xmlns="http://www.w3.org/2000/svg"
                              class="h-4 w-4 text-gray-400 transition-transform duration-150"
-                             :class="open ? 'rotate-180' : ''"
+                             :class="templatePanelOpen ? 'rotate-180' : ''"
                              fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/>
                         </svg>
                     </div>
-                    <div x-show="open" x-transition>
-                        {% if criteria_groups %}
+                    <div x-show="templatePanelOpen" x-transition>
                         <div class="px-3 py-2 border-b border-gray-100 dark:border-gray-700/50">
-                            <input type="text" x-model="search" placeholder="Search templates…"
+                            <input type="text" x-model="templateSearch" placeholder="Search templates…"
                                    class="w-full rounded border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900 px-2 py-1 text-xs text-gray-700 dark:text-gray-300 placeholder-gray-400 focus:outline-none focus:ring-1 focus:ring-blue-500"
                                    aria-label="Search templates" />
                         </div>
                         <ul class="divide-y divide-gray-100 dark:divide-gray-700/50 max-h-96 overflow-y-auto" role="listbox" aria-label="Criteria templates">
-                            <template x-for="t in filtered()" :key="t.id">
+                            <template x-for="t in filteredTemplates()" :key="t.id">
                                 <li class="px-3 py-2.5">
                                     <div class="flex items-start justify-between gap-2">
                                         <div class="min-w-0">
@@ -452,6 +481,9 @@ var _templateData = {{ criteria_groups | tojson }};
                                             <p class="mt-0.5 text-xs text-gray-400 dark:text-gray-500 line-clamp-2 leading-tight"
                                                x-show="t.description"
                                                x-text="t.description && t.description.length > 120 ? t.description.substring(0, 120) + '…' : t.description"></p>
+                                            <template x-if="t.project_id && t.project_id === projectId">
+                                                <span class="inline-flex items-center rounded px-1 py-0.5 text-xs bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400 mt-0.5">project</span>
+                                            </template>
                                         </div>
                                         <button type="button"
                                                 @click="$dispatch('select-template', t)"
@@ -462,18 +494,10 @@ var _templateData = {{ criteria_groups | tojson }};
                                     </div>
                                 </li>
                             </template>
-                            <li x-show="filtered().length === 0" class="px-3 py-4 text-center" role="option" aria-disabled="true">
+                            <li x-show="filteredTemplates().length === 0" class="px-3 py-4 text-center" role="option" aria-disabled="true">
                                 <p class="text-xs text-gray-400 dark:text-gray-500">No matching templates.</p>
                             </li>
                         </ul>
-                        {% else %}
-                        <div class="px-4 py-6 text-center">
-                            <p class="text-xs text-gray-400 dark:text-gray-500">No criteria templates yet.</p>
-                            <p class="mt-1 text-xs text-gray-400 dark:text-gray-500">
-                                <a href="/criteria/new" class="text-blue-600 dark:text-blue-400 hover:underline">Create one</a> to get started.
-                            </p>
-                        </div>
-                        {% endif %}
                     </div>
                 </div>
 

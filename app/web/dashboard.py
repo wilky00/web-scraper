@@ -16,6 +16,7 @@ from app.auth.session import SESSION_COOKIE, get_session
 from app.models.connector import Connector
 from app.models.criteria import CriteriaGroup, CriteriaVersion
 from app.models.job import CrawlJob, CrawlJobEvent
+from app.models.project import Project
 from app.models.record import BusinessRecord
 from app.models.user import User
 from app.settings import Settings
@@ -40,6 +41,10 @@ async def dashboard(
             csrf_token = session_data.get("csrf_token", "")
 
     async with AsyncSession(request.app.state.engine) as db:
+        project_count = (
+            await db.execute(select(func.count()).select_from(Project))
+        ).scalar() or 0
+
         # Record counts grouped by status
         counts_result = await db.execute(
             select(BusinessRecord.status, func.count(BusinessRecord.id)).group_by(
@@ -130,5 +135,6 @@ async def dashboard(
             "connector_names": connector_names,
             "criteria_names": criteria_names,
             "failed_jobs": failed_jobs,
+            "project_count": project_count,
         },
     )

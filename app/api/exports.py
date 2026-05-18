@@ -56,6 +56,7 @@ async def create_export(
     csrf_token: str = Form(default=""),
     session_cookie: str | None = Cookie(default=None, alias=SESSION_COOKIE),
     format: str = Form(default="csv"),
+    project_id: str = Form(default=""),
     q: str = Form(default=""),
     status: str = Form(default=""),
     score_min: str = Form(default=""),
@@ -77,6 +78,7 @@ async def create_export(
         "score_max": score_max.strip(),
         "date_from": date_from.strip(),
         "date_to": date_to.strip(),
+        "project_id": project_id.strip() if project_id.strip() != "ALL" else "",
     }
 
     async with AsyncSession(request.app.state.engine) as db:

@@ -21,6 +21,9 @@ class CriteriaGroup(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     tags: Mapped[list[str]] = mapped_column(JSONB, nullable=False, default=list)
     is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
     is_template: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    project_id: Mapped[uuid.UUID | None] = mapped_column(
+        ForeignKey("projects.id", ondelete="SET NULL"), nullable=True, index=True
+    )
 
     versions: Mapped[list[CriteriaVersion]] = relationship(
         "CriteriaVersion", back_populates="group", order_by="CriteriaVersion.version"

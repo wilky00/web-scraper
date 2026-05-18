@@ -17,6 +17,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.auth.permissions import require_operator
 from app.auth.session import SESSION_COOKIE, get_session
 from app.models.audit import Export
+from app.models.project import Project
 from app.models.user import User
 from app.services import storage
 from app.settings import Settings
@@ -60,6 +61,9 @@ async def exports_list(
         result = await db.execute(select(Export).order_by(Export.created_at.desc()).limit(50))
         exports = [_export_to_dict(e) for e in result.scalars().all()]
 
+        projects_result = await db.execute(select(Project).order_by(Project.name))
+        projects = [{"id": str(p.id), "name": p.name} for p in projects_result.scalars().all()]
+
     return templates.TemplateResponse(
         request,
         "exports/list.html",
@@ -68,6 +72,7 @@ async def exports_list(
             "csrf_token": csrf_token,
             "exports": exports,
             "has_api_token": user.api_key_hash is not None,
+            "projects": projects,
         },
     )
 

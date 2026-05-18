@@ -74,13 +74,39 @@ output:      # optional</code></pre>
                 </p>
             </section>
 
+            <!-- metadata.project -->
+            <section>
+                <h2 class="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-1 pb-1 border-b border-gray-200 dark:border-gray-700">
+                    Project Scoping
+                </h2>
+                <p class="mt-2 text-sm text-gray-600 dark:text-gray-400">
+                    Templates can be scoped to a project using <code class="font-mono text-xs bg-gray-100 dark:bg-gray-800 px-1 rounded">metadata.project</code>.
+                    Templates with no project tag are available to all projects (treated as Default).
+                    When creating a job, only project-matching templates and Default templates appear in the template browser.
+                </p>
+                <pre class="rounded-md bg-gray-900 text-gray-100 px-4 py-3 text-sm font-mono overflow-x-auto mt-3"><code>metadata:
+  name: my-criteria
+  display_name: My Criteria
+  project: ProjectA    # optional — scope to a specific project by name
+                       # omit or leave blank for Default (available to all projects)</code></pre>
+            </section>
+
             <!-- crawl -->
             <section>
                 <h2 class="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-1 pb-1 border-b border-gray-200 dark:border-gray-700">
                     <code class="font-mono text-base">crawl</code>
                     <span class="ml-2 text-xs font-normal text-gray-400">optional</span>
                 </h2>
-                <p class="mt-2 text-sm text-gray-600 dark:text-gray-400">Controls website crawling after connector discovery.</p>
+                <p class="mt-2 text-sm text-gray-600 dark:text-gray-400">
+                    Controls website crawling after connector discovery.
+                    When a URL is discovered, Scrapy uses <strong>Playwright</strong> (headless Chromium) to fetch the page —
+                    this enables JavaScript-rendered content and automatic screenshot capture.
+                    Set <code class="font-mono text-xs bg-gray-100 dark:bg-gray-800 px-1 rounded">crawl.enabled: true</code>
+                    and configure <code class="font-mono text-xs bg-gray-100 dark:bg-gray-800 px-1 rounded">max_depth</code> and
+                    <code class="font-mono text-xs bg-gray-100 dark:bg-gray-800 px-1 rounded">max_pages_per_domain</code>.
+                    The <code class="font-mono text-xs bg-gray-100 dark:bg-gray-800 px-1 rounded">USER_AGENT</code> and request delays are
+                    set globally in <code class="font-mono text-xs bg-gray-100 dark:bg-gray-800 px-1 rounded">config/crawl.yml</code>.
+                </p>
                 <pre class="rounded-md bg-gray-900 text-gray-100 px-4 py-3 text-sm font-mono overflow-x-auto mt-3"><code>crawl:
   enabled: true               # set false to skip crawling entirely
   max_depth: 2                # link depth from landing page (0–10, default: 3)

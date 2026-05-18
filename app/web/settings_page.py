@@ -9,6 +9,8 @@ import yaml
 from fastapi import APIRouter, Depends, Request
 from fastapi.responses import HTMLResponse
 from fastapi.templating import Jinja2Templates
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.auth.permissions import require_operator
 from app.auth.session import SESSION_COOKIE, get_session
@@ -68,6 +70,21 @@ async def settings_page(
                     redacted, default_flow_style=False, sort_keys=True
                 )
 
+    async with AsyncSession(request.app.state.engine) as db:
+        users_result = await db.execute(
+            select(User).where(User.deleted_at.is_(None)).order_by(User.created_at)
+        )
+        users_list = [
+            {
+                "id": str(u.id),
+                "email": u.email,
+                "role": u.role,
+                "is_active": u.is_active,
+                "created_at": u.created_at.strftime("%Y-%m-%d") if u.created_at else "—",
+            }
+            for u in users_result.scalars()
+        ]
+
     return templates.TemplateResponse(
         request,
         "settings.html",
@@ -76,5 +93,6 @@ async def settings_page(
             "csrf_token": csrf_token,
             "config_sections": config_sections,
             "has_api_token": user.api_key_hash is not None,
+            "users_list": users_list,
         },
     )

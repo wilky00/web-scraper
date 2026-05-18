@@ -54,7 +54,12 @@ async def new_job_form(
             select(Connector).where(Connector.enabled).order_by(Connector.name)
         )
         connectors = [
-            {"id": str(c.id), "name": c.name, "connector_type": c.connector_type}
+            {
+                "id": str(c.id),
+                "name": c.name,
+                "connector_type": c.connector_type,
+                "projects": c.config_snapshot.get("projects", []) if c.config_snapshot else [],
+            }
             for c in conn_result.scalars()
         ]
 
@@ -93,6 +98,7 @@ async def new_job_form(
                 "description": g.description or "",
                 "tags": g.tags or [],
                 "latest_version_id": latest_versions.get(str(g.id), ""),
+                "project_id": str(g.project_id) if g.project_id else "",
             }
             for g in groups_result.scalars()
             if str(g.id) in latest_versions
@@ -100,6 +106,12 @@ async def new_job_form(
 
         projects_result = await db.execute(select(Project).order_by(Project.name))
         projects = [{"id": str(p.id), "name": p.name} for p in projects_result.scalars()]
+
+    default_project = next((p for p in projects if p["name"] == "Default"), None)
+    if default_project:
+        default_project_id = default_project["id"]
+    else:
+        default_project_id = projects[0]["id"] if projects else ""
 
     # Default crawl config values for the form
     app_crawl: CrawlConfig = request.app.state.config.crawl
@@ -119,6 +131,7 @@ async def new_job_form(
             "csrf_token": csrf_token,
             "user": user,
             "projects": projects,
+            "default_project_id": default_project_id,
         },
     )
 

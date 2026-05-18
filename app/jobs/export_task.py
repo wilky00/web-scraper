@@ -15,6 +15,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
 
 from app.models.audit import Export, RecordAuditLog
+from app.models.job import CrawlJob
 from app.models.record import BusinessRecord
 from app.services import storage
 from app.settings import Settings
@@ -111,6 +112,16 @@ async def _query_records(
     score_max_str = (filter_params.get("score_max") or "").strip()
     date_from_str = (filter_params.get("date_from") or "").strip()
     date_to_str = (filter_params.get("date_to") or "").strip()
+    project_id_str = (filter_params.get("project_id") or "").strip()
+
+    if project_id_str:
+        try:
+            pid = uuid.UUID(project_id_str)
+            query = query.where(
+                BusinessRecord.job_id.in_(select(CrawlJob.id).where(CrawlJob.project_id == pid))
+            )
+        except ValueError:
+            pass
 
     if q:
         query = query.where(BusinessRecord.name.ilike(f"%{q}%"))

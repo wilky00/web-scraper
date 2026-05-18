@@ -50,6 +50,7 @@
                     <input type="hidden" name="score_max" value="{{ filters.score_max }}">
                     <input type="hidden" name="date_from" value="{{ filters.date_from }}">
                     <input type="hidden" name="date_to" value="{{ filters.date_to }}">
+                    <input type="hidden" name="project_id" value="{{ filters.project_id }}">
                     <select
                         name="format"
                         aria-label="Export format"
@@ -111,6 +112,16 @@
                     type="date" name="date_to" value="{{ filters.date_to }}"
                     class="rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 px-3 py-1.5 text-sm text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500"
                 >
+                <select
+                    name="project_id"
+                    aria-label="Filter by project"
+                    class="rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 px-3 py-1.5 text-sm text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                >
+                    <option value="" {% if not filters.project_id %}selected{% endif %}>All Projects</option>
+                    {% for p in projects %}
+                    <option value="{{ p.id }}" {% if filters.project_id == p.id %}selected{% endif %}>{{ p.name }}</option>
+                    {% endfor %}
+                </select>
                 <!-- Preserve current sort state across filter submits -->
                 <input type="hidden" name="sort" value="{{ filters.sort }}">
                 <input type="hidden" name="order" value="{{ filters.order }}">
@@ -124,6 +135,9 @@
                 >Clear</a>
             </div>
         </form>
+        <p class="mt-2 text-xs text-gray-400 dark:text-gray-500">
+            Custom connectors for a project can be configured in <a href="/settings" class="underline hover:text-blue-600 dark:hover:text-blue-400">Settings</a>.
+        </p>
 
         <!-- Bulk action bar -->
         <div x-show="selected.size > 0" x-transition class="mb-4 flex items-center gap-3 rounded-lg border border-amber-200 dark:border-amber-700 bg-amber-50 dark:bg-amber-900/20 px-4 py-2.5">

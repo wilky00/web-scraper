@@ -16,7 +16,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.auth.permissions import require_operator
 from app.auth.session import SESSION_COOKIE, get_session
 from app.models.connector import Connector
-from app.models.criteria import CriteriaVersion
+from app.models.criteria import CriteriaGroup, CriteriaVersion
 from app.models.job import CrawlJob
 from app.models.project import Project, ProjectApiKey
 from app.models.user import User
@@ -77,14 +77,27 @@ async def projects_list(
                     )
                 )
             ).scalar() or 0
+            tc = (
+                await db.execute(
+                    select(func.count())
+                    .select_from(CriteriaGroup)
+                    .where(
+                        CriteriaGroup.project_id == p.id,
+                        CriteriaGroup.is_active.is_(True),
+                    )
+                )
+            ).scalar() or 0
             projects.append(
                 {
                     "id": str(p.id),
                     "name": p.name,
-                    "description": p.description,
+                    "description": p.description or "",
                     "created_at": p.created_at.strftime("%Y-%m-%d %H:%M") if p.created_at else "—",
                     "job_count": jc,
                     "key_count": kc,
+                    "template_count": tc,
+                    "has_api_key": kc > 0,
+                    "is_default": p.name == "Default",
                 }
             )
 
@@ -152,7 +165,7 @@ async def project_detail(
                 select(CriteriaVersion).where(CriteriaVersion.id.in_(criteria_ids))
             )
             for cv in crit_result.scalars():
-                criteria_names[str(cv.id)] = cv.label or f"v{cv.version}"
+                criteria_names[str(cv.id)] = f"v{cv.version}"
 
         jobs = [
             {

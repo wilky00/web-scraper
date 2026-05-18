@@ -21,6 +21,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.auth.permissions import require_operator
 from app.auth.session import SESSION_COOKIE, get_session
 from app.models.crawl import CrawlPage
+from app.models.job import CrawlJob
+from app.models.project import Project
 from app.models.record import BusinessRecord, RecordSource
 from app.models.user import User
 from app.services import storage
@@ -95,6 +97,7 @@ async def records_list(
     score_max: str = Query(default=""),
     date_from: str = Query(default=""),
     date_to: str = Query(default=""),
+    project_id: str = Query(default=""),
     sort: str = Query(default="created_at"),
     order: str = Query(default="desc"),
     page: int = Query(default=1, ge=1),
@@ -145,11 +148,26 @@ async def records_list(
         except ValueError:
             pass
 
+    parsed_project_id: uuid.UUID | None = None
+    if project_id.strip():
+        try:
+            parsed_project_id = uuid.UUID(project_id.strip())
+            base_query = base_query.where(
+                BusinessRecord.job_id.in_(
+                    select(CrawlJob.id).where(CrawlJob.project_id == parsed_project_id)
+                )
+            )
+        except ValueError:
+            pass
+
     sort_col = _SORT_COLUMNS[sort]
 
     async with AsyncSession(request.app.state.engine) as db:
         count_result = await db.execute(select(func.count()).select_from(base_query.subquery()))
         total = count_result.scalar() or 0
+
+        projects_result = await db.execute(select(Project).order_by(Project.name))
+        projects = [{"id": str(p.id), "name": p.name} for p in projects_result.scalars().all()]
 
         paged_query = base_query
         if order == "asc":
@@ -169,6 +187,7 @@ async def records_list(
         "score_max": score_max,
         "date_from": date_from,
         "date_to": date_to,
+        "project_id": project_id,
         "sort": sort,
         "order": order,
     }
@@ -188,6 +207,7 @@ async def records_list(
             "next_url": _page_url(filters, page + 1) if page < total_pages else None,
             "csrf_token": csrf_token,
             "user": user,
+            "projects": projects,
         },
     )
 

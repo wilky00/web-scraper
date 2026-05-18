@@ -23,6 +23,7 @@ from app.auth.session import SESSION_COOKIE, get_session
 from app.config.criteria import validate_criteria_yaml
 from app.models.audit import RecordAuditLog
 from app.models.criteria import CriteriaGroup, CriteriaVersion
+from app.models.project import Project
 from app.models.user import User
 from app.settings import Settings
 from app.web.criteria import _ai_enabled
@@ -236,6 +237,31 @@ async def create_criteria(
         )
 
     snapshot = config.model_dump()
+
+    # Resolve metadata.project name → project_id
+    project_id: uuid.UUID | None = None
+    if config.metadata.project:
+        async with AsyncSession(request.app.state.engine) as _db:
+            _proj = (
+                await _db.execute(
+                    select(Project).where(Project.name == config.metadata.project)
+                )
+            ).scalar_one_or_none()
+        if _proj is None:
+            return _render_editor(
+                request,
+                yaml_text=yaml_text,
+                errors=[
+                    f"Unknown project '{config.metadata.project}'. "
+                    "Check the metadata.project field matches an existing project name."
+                ],
+                csrf_token=csrf_token,
+                user=user,
+                ai_enabled=_ai_enabled(request),
+                status_code=422,
+            )
+        project_id = _proj.id
+
     try:
         async with AsyncSession(request.app.state.engine) as db:
             group = CriteriaGroup(
@@ -244,6 +270,7 @@ async def create_criteria(
                 description=config.metadata.description,
                 tags=config.metadata.tags,
                 is_active=True,
+                project_id=project_id,
             )
             db.add(group)
             await db.flush()
@@ -412,6 +439,18 @@ async def save_criteria_version(
         group.display_name = config.metadata.display_name
         group.description = config.metadata.description
         group.tags = config.metadata.tags
+
+        # Update project association from metadata.project tag
+        if config.metadata.project:
+            _proj2 = (
+                await db3.execute(
+                    select(Project).where(Project.name == config.metadata.project)
+                )
+            ).scalar_one_or_none()
+            group.project_id = _proj2.id if _proj2 else None
+        else:
+            group.project_id = None
+
         db3.add(group)
 
         await db3.commit()

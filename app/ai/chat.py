@@ -17,6 +17,19 @@ operators create and edit YAML-based scraping criteria.
 ## Current Criteria Being Edited
 {current_yaml}
 
+## Projects
+The app organizes work into Projects. Criteria templates can be scoped to a \
+project by adding `metadata.project: <project-name>` (optional). Templates with \
+no project tag are available to all projects (treated as Default). When creating \
+a job, only project-matching templates and Default templates appear in the \
+template browser.
+
+## Web Crawling
+Scrapy uses Playwright (headless Chromium) to fetch website pages. Set \
+`crawl.enabled: true` and configure `max_depth` and `max_pages_per_domain`. \
+Screenshots are automatically captured for each crawled page and stored in S3. \
+The `USER_AGENT` and request delays are set in `config/crawl.yml`.
+
 ## Instructions
 - When you generate or modify criteria YAML, wrap it in a ```yaml code block.
 - Include only one YAML block per response.

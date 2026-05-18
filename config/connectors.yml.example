@@ -5,6 +5,8 @@ connectors:
   google_places:
     enabled: true
     max_results: 60
+    # projects: []              # empty = available to all projects (global)
+    # projects: ["ProjectA"]   # restrict to one or more project names
     rate_limit:
       requests_per_minute: 30
     retry:
@@ -18,6 +20,7 @@ connectors:
   brave_search:
     enabled: false
     max_results: 20
+    # projects: []
     rate_limit:
       requests_per_minute: 10
     retry:
@@ -27,3 +30,4 @@ connectors:
   fixture:
     enabled: true
     fixture_dir: "tests/fixtures/connector_responses"
+    # projects: []
