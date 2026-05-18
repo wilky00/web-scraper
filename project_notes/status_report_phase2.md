@@ -89,3 +89,29 @@ WHERE name IN (
 
 ### Open issues / follow-ups
 - None; clean sprint
+
+---
+
+## Criteria Overhaul — Sprint 2.2 — List page redesign + delete/clone API
+**Completed:** 2026-05-17
+
+### What was built
+- `app/web/criteria.py` — added `"is_template": g.is_template` to `groups_data` dict
+- `app/api/criteria.py` — `POST /api/criteria/{group_id}/delete`: soft-deletes (`is_active=False`), 422 if `is_template=True`, audit log `action="criteria_delete"`, returns JSON `{"ok": true}`
+- `app/api/criteria.py` — `POST /api/criteria/{group_id}/clone`: deep-copies latest CriteriaVersion snapshot, creates new CriteriaGroup (`is_template=False`) with `{name}-copy` suffix, retries up to 5 times on IntegrityError, audit log `action="criteria_clone"`, returns `HX-Redirect` header
+- `app/templates/criteria/list.html` — full Alpine.js redesign: tag filter pills (`allTags` getter + `toggleTag()`), search input (`filtered` getter replaces `sorted`), Template badge (purple) on seeded rows, Clone icon button (all rows), Delete icon button (hidden for templates), two creation buttons (Advanced live + Guided disabled with tooltip)
+- `tests/api/test_criteria_api.py` — 4 new tests: soft delete, template delete blocked (422), clone creates copy (HX-Redirect), name collision retries to success
+
+### Key decisions
+- Clone pre-generates the new group UUID (`id=candidate_id`) before the session, so the id is available without relying on SQLAlchemy flush to apply the `default=uuid.uuid4` column default — that default only runs during real DB INSERT
+- Delete returns `{"ok": true}` (200 JSON) and the Alpine handler splices the row from `items` client-side (no full page reload); Clone returns `HX-Redirect` header and Alpine redirects to the new editor
+- Delete button is hidden for templates in the template (`x-if="!group.is_template"`); the API still guards with a 422 as a defense-in-depth measure
+
+### Test results
+572/572 unit tests green | ruff clean | mypy strict clean
+
+### Bugs found and fixed
+- `commit_side_effect: list[object]` type annotation caused mypy `[misc]` error on `raise effects[i]` — fixed to `list[Exception | None]` so mypy recognizes the raise is valid
+
+### Open issues / follow-ups
+- None; clean sprint

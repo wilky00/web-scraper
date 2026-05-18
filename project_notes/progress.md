@@ -367,9 +367,10 @@ Deferred: Streaming responses (SSE) → deferred; full response + loading indica
 - [x] `pyproject.toml` — added E501 per-file-ignore for seed.py (YAML string literals exceed 100 chars legitimately)
 - NOTE: Staging backfill required after migration apply: UPDATE criteria_groups SET is_template=true WHERE name IN ('social-only-businesses-nashville', 'nashville-barbershops-legacy-html', 'restaurants-missing-contact-info', 'local-shops-http-only', 'nashville-gyms-without-online-booking')
 
-### Sprint 2.2 — List page redesign + delete/clone API
-- [ ] `app/web/criteria.py` — add `is_template` field to `groups_data` dict
-- [ ] `app/api/criteria.py` — add `POST /api/criteria/{group_id}/delete` (soft delete, 422 if is_template)
-- [ ] `app/api/criteria.py` — add `POST /api/criteria/{group_id}/clone` (copy latest version, name suffix loop)
-- [ ] `app/templates/criteria/list.html` — tag filter bar, search, Template badge, Delete/Clone buttons
-- [ ] `tests/api/test_criteria_api.py` — 4 new tests: soft delete, template blocked, clone, name collision
+### Sprint 2.2 — List page redesign + delete/clone API — COMPLETE (verified green 2026-05-17, 572/572 unit tests, ruff+mypy clean)
+- [x] `app/web/criteria.py` — add `is_template` field to `groups_data` dict
+- [x] `app/api/criteria.py` — add `POST /api/criteria/{group_id}/delete` (soft delete, 422 if is_template)
+- [x] `app/api/criteria.py` — add `POST /api/criteria/{group_id}/clone` (copy latest version, name suffix loop)
+- [x] `app/templates/criteria/list.html` — tag filter bar, search, Template badge, Delete/Clone buttons
+- [x] `tests/api/test_criteria_api.py` — 4 new tests: soft delete, template blocked, clone, name collision
+- NOTE: Clone pre-generates UUID (`id=candidate_id`) to avoid dependence on SQLAlchemy flush setting PK default in unit test context
