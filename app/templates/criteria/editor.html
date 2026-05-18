@@ -115,6 +115,7 @@ async function loadVersion(groupId, versionId) {
         console.error('loadVersion failed', e);
     }
 }
+var _templateData = {{ templates | tojson if templates is defined else '[]' }};
 </script>
 {% endblock %}
 {% block content %}
@@ -348,7 +349,7 @@ async function loadVersion(groupId, versionId) {
                      x-data="{
                          open: {% if not group %}true{% else %}false{% endif %},
                          search: '',
-                         templates: {{ templates | tojson }},
+                         templates: (typeof _templateData !== 'undefined' ? _templateData : []),
                          filtered() {
                              if (!this.search) return this.templates;
                              var q = this.search.toLowerCase();
