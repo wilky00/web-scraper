@@ -26,6 +26,7 @@ class FetchResult:
     content_type: str
     depth: int
     error: str | None = None
+    screenshot_bytes: bytes | None = None
 
     @property
     def success(self) -> bool:
@@ -57,7 +58,9 @@ class PageFetcher:
             await self._playwright.stop()
             self._playwright = None
 
-    async def fetch(self, url: str, depth: int = 0) -> FetchResult:
+    async def fetch(
+        self, url: str, depth: int = 0, capture_screenshot: bool = False
+    ) -> FetchResult:
         if self._browser is None:
             raise RuntimeError("PageFetcher must be used as an async context manager")
 
@@ -94,6 +97,15 @@ class PageFetcher:
                 content_type = response.headers.get("content-type", "")
                 html = await page.content()
 
+                screenshot_bytes: bytes | None = None
+                if capture_screenshot:
+                    try:
+                        screenshot_bytes = await page.screenshot(
+                            type="png", full_page=False
+                        )
+                    except PlaywrightError as exc:
+                        logger.warning("page.screenshot_failed", url=url, error=str(exc))
+
                 logger.info("page.fetched", url=url, status=status_code, depth=depth)
                 return FetchResult(
                     url=url,
@@ -102,6 +114,7 @@ class PageFetcher:
                     html=html,
                     content_type=content_type,
                     depth=depth,
+                    screenshot_bytes=screenshot_bytes,
                 )
             except PlaywrightError as exc:
                 self._last_fetch_time = time.monotonic()

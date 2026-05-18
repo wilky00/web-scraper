@@ -75,3 +75,8 @@ def generate_export_key(export_id: uuid.UUID, fmt: str) -> str:
 def generate_html_key(job_id: uuid.UUID, url: str) -> str:
     url_hash = hashlib.sha256(url.encode()).hexdigest()
     return f"html/{job_id}/{url_hash}.html"
+
+
+def generate_screenshot_key(job_id: uuid.UUID, url: str) -> str:
+    url_hash = hashlib.sha256(url.encode()).hexdigest()
+    return f"screenshots/{job_id}/{url_hash}.png"

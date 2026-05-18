@@ -27,6 +27,7 @@ from app.auth.oidc import sso_enabled as _oidc_sso_enabled
 from app.auth.permissions import NotAuthenticatedException
 from app.auth.seed import seed_operator
 from app.config.loader import ConfigLoadError, load_all_configs
+from app.connectors.seed import seed_connectors
 from app.criteria.seed import seed_example_criteria
 from app.models.user import User
 from app.settings import Settings
@@ -74,6 +75,7 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     async with AsyncSession(app.state.engine) as _db:
         _seed_user = (await _db.execute(select(User).limit(1))).scalar_one_or_none()
     await seed_example_criteria(app.state.engine, _seed_user.id if _seed_user else None)
+    await seed_connectors(app.state.engine, app.state.config.connectors.connectors)
 
     if app.state.config.ai and not app.state.config.ai.models:
         import json as _json

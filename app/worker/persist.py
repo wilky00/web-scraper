@@ -27,20 +27,40 @@ async def persist_crawl_page(
     settings: Settings | None = None,
 ) -> CrawlPage:
     raw_html_path: str | None = None
+    screenshot_path: str | None = None
 
-    if settings and settings.s3_endpoint_url and result.html:
-        key = storage.generate_html_key(job_id, result.url)
-        try:
-            await asyncio.to_thread(
-                storage.upload_bytes,
-                result.html.encode("utf-8"),
-                key,
-                "text/html",
-                settings,
-            )
-            raw_html_path = key
-        except storage.StorageError:
-            logger.warning("crawl_page.html_upload_failed", url=result.url, job_id=str(job_id))
+    if settings and settings.s3_endpoint_url:
+        if result.html:
+            key = storage.generate_html_key(job_id, result.url)
+            try:
+                await asyncio.to_thread(
+                    storage.upload_bytes,
+                    result.html.encode("utf-8"),
+                    key,
+                    "text/html",
+                    settings,
+                )
+                raw_html_path = key
+            except storage.StorageError:
+                logger.warning(
+                    "crawl_page.html_upload_failed", url=result.url, job_id=str(job_id)
+                )
+
+        if result.screenshot_bytes:
+            skey = storage.generate_screenshot_key(job_id, result.url)
+            try:
+                await asyncio.to_thread(
+                    storage.upload_bytes,
+                    result.screenshot_bytes,
+                    skey,
+                    "image/png",
+                    settings,
+                )
+                screenshot_path = skey
+            except storage.StorageError:
+                logger.warning(
+                    "crawl_page.screenshot_upload_failed", url=result.url, job_id=str(job_id)
+                )
 
     page = CrawlPage(
         job_id=job_id,
@@ -49,6 +69,7 @@ async def persist_crawl_page(
         status_code=result.status_code,
         crawl_depth=result.depth,
         raw_html_path=raw_html_path,
+        screenshot_path=screenshot_path,
         extracted_fields={},
         error=result.error,
     )

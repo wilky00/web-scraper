@@ -55,6 +55,7 @@ class CrawlSection(BaseModel):
     delay_ms: int = Field(1000, ge=0)
     include_url_patterns: list[str] = []
     exclude_url_patterns: list[str] = []
+    capture_screenshot: bool = False
 
 
 class ExtractionField(BaseModel):

@@ -15,7 +15,7 @@ from app.auth.permissions import require_operator
 from app.auth.session import SESSION_COOKIE, get_session
 from app.models.connector import Connector
 from app.models.criteria import CriteriaGroup, CriteriaVersion
-from app.models.job import CrawlJob
+from app.models.job import CrawlJob, CrawlJobEvent
 from app.models.record import BusinessRecord
 from app.models.user import User
 from app.settings import Settings
@@ -54,9 +54,19 @@ async def dashboard(
         )
         recent_jobs = list(jobs_result.scalars().all())
 
-        # Resolve connector and criteria names
-        connector_ids = {j.connector_id for j in recent_jobs}
-        criteria_ids = {j.criteria_version_id for j in recent_jobs}
+        # Last 5 failed jobs
+        failed_result = await db.execute(
+            select(CrawlJob)
+            .where(CrawlJob.status == "failed")
+            .order_by(CrawlJob.created_at.desc())
+            .limit(5)
+        )
+        failed_jobs_orm = list(failed_result.scalars().all())
+
+        # Resolve connector and criteria names (union of recent + failed jobs)
+        all_jobs = recent_jobs + failed_jobs_orm
+        connector_ids = {j.connector_id for j in all_jobs}
+        criteria_ids = {j.criteria_version_id for j in all_jobs}
 
         connector_names: dict[uuid.UUID, str] = {}
         criteria_names: dict[uuid.UUID, str] = {}
@@ -84,6 +94,28 @@ async def dashboard(
                     grp = group_map.get(cv.group_id)
                     criteria_names[cv.id] = grp.display_name if grp else "—"
 
+        # For each failed job, get the latest event message as the failure reason
+        failed_jobs: list[dict[str, object]] = []
+        for j in failed_jobs_orm:
+            evt = (
+                await db.execute(
+                    select(CrawlJobEvent)
+                    .where(CrawlJobEvent.job_id == j.id)
+                    .order_by(CrawlJobEvent.created_at.desc())
+                    .limit(1)
+                )
+            ).scalar_one_or_none()
+            failed_jobs.append(
+                {
+                    "id": str(j.id),
+                    "id_short": str(j.id)[:8],
+                    "connector_name": connector_names.get(j.connector_id, "—"),
+                    "criteria_name": criteria_names.get(j.criteria_version_id, "—"),
+                    "created_at": j.created_at.strftime("%Y-%m-%d %H:%M") if j.created_at else "—",
+                    "error": evt.message if evt else "Unknown error",
+                }
+            )
+
     total_records = sum(record_counts.values())
 
     return templates.TemplateResponse(
@@ -97,5 +129,6 @@ async def dashboard(
             "recent_jobs": recent_jobs,
             "connector_names": connector_names,
             "criteria_names": criteria_names,
+            "failed_jobs": failed_jobs,
         },
     )

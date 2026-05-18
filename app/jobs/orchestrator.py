@@ -101,6 +101,7 @@ async def run_job(
                     robots_cache=robots_cache,
                     crawl_config=crawl_config,
                     settings=settings,
+                    capture_screenshot=criteria.crawl.capture_screenshot,
                     log=log,
                 )
                 if fetch_result and fetch_result.success:
@@ -184,6 +185,7 @@ async def _try_crawl(
     robots_cache: RobotsCache | None,
     crawl_config: CrawlConfig | None,
     settings: Settings | None = None,
+    capture_screenshot: bool = False,
     log: Any,
 ) -> FetchResult | None:
     """Attempt to crawl a URL. Returns FetchResult or None if skipped/failed."""
@@ -204,7 +206,7 @@ async def _try_crawl(
         return None
 
     try:
-        fetch_result = await fetcher.fetch(url)
+        fetch_result = await fetcher.fetch(url, capture_screenshot=capture_screenshot)
     except Exception as exc:
         log.warning("orchestrator.crawl_error", url=url, error=str(exc))
         await log_crawl_event(session, job_id, "crawl_error", f"Fetch failed for {url}: {exc}")

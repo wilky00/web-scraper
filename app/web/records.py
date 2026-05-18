@@ -2,6 +2,7 @@
 # ABOUTME: List supports server-side filter/sort/pagination; edit partial is HTMX-swapped inline.
 from __future__ import annotations
 
+import asyncio
 import math
 import uuid
 from datetime import UTC, date, datetime
@@ -19,8 +20,10 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.auth.permissions import require_operator
 from app.auth.session import SESSION_COOKIE, get_session
+from app.models.crawl import CrawlPage
 from app.models.record import BusinessRecord, RecordSource
 from app.models.user import User
+from app.services import storage
 from app.settings import Settings
 
 logger = structlog.get_logger(__name__)
@@ -215,6 +218,19 @@ async def record_detail(
         )
         sources = list(sources_result.scalars().all())
 
+        # Check whether a screenshot was captured for this record's page
+        has_screenshot = False
+        if record.website and record.job_id:
+            ss_result = await db.execute(
+                select(CrawlPage.screenshot_path)
+                .where(CrawlPage.job_id == record.job_id)
+                .where(CrawlPage.url == record.website)
+                .where(CrawlPage.screenshot_path.isnot(None))
+                .order_by(CrawlPage.created_at.desc())
+                .limit(1)
+            )
+            has_screenshot = ss_result.scalar_one_or_none() is not None
+
     sources_data = [
         {
             "field": s.field,
@@ -232,6 +248,7 @@ async def record_detail(
             "record": _record_to_dict(record),
             "sources": sources_data,
             "rule_results": record.rule_results or {},
+            "has_screenshot": has_screenshot,
             "csrf_token": csrf_token,
             "user": user,
         },
@@ -263,3 +280,48 @@ async def record_edit_partial(
         "records/_edit_form.html",
         {"record": _record_to_dict(record), "csrf_token": csrf_token},
     )
+
+
+@router.get("/records/{record_id}/screenshot")
+async def record_screenshot(
+    record_id: str,
+    request: Request,
+    user: User = Depends(require_operator),
+) -> Response:
+    """Serve the screenshot for a record's crawled website page."""
+    try:
+        parsed_id = uuid.UUID(record_id)
+    except ValueError:
+        return HTMLResponse("Not found", status_code=404)
+
+    settings: Settings = request.app.state.settings
+    if not settings.s3_endpoint_url:
+        return HTMLResponse("Storage not configured", status_code=404)
+
+    async with AsyncSession(request.app.state.engine) as db:
+        record: BusinessRecord | None = await db.get(BusinessRecord, parsed_id)
+        if record is None or not record.website or not record.job_id:
+            return HTMLResponse("Not found", status_code=404)
+
+        ss_result = await db.execute(
+            select(CrawlPage.screenshot_path)
+            .where(CrawlPage.job_id == record.job_id)
+            .where(CrawlPage.url == record.website)
+            .where(CrawlPage.screenshot_path.isnot(None))
+            .order_by(CrawlPage.created_at.desc())
+            .limit(1)
+        )
+        screenshot_key = ss_result.scalar_one_or_none()
+
+    if not screenshot_key:
+        return HTMLResponse("Not found", status_code=404)
+
+    try:
+        image_bytes = await asyncio.to_thread(storage.download_bytes, screenshot_key, settings)
+    except storage.StorageNotFoundError:
+        return HTMLResponse("Not found", status_code=404)
+    except storage.StorageError:
+        logger.warning("record_screenshot.download_failed", record_id=record_id, key=screenshot_key)
+        return HTMLResponse("Storage error", status_code=502)
+
+    return Response(content=image_bytes, media_type="image/png")

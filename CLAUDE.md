@@ -7,12 +7,12 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - PostgreSQL 16, Redis 7, RQ (job queue)
 - Jinja2 + HTMX + Alpine.js (minimal) + Tailwind CSS
 - Docker Compose for all environments
-- Playwright in worker container ONLY
+- Playwright available in both app and worker containers
 
 ## Package Management
 - Use `uv` for all dependency management — never pip directly
 - Run `uv lock` after any `pyproject.toml` changes and commit `uv.lock`
-- Install with extras: `uv sync --extra dev` for dev, `uv sync --extra worker` for worker
+- Install with extras: `uv sync --extra dev` for dev (worker extras no longer exist; playwright is a base dep)
 
 ## Running Locally
 ```bash
@@ -76,7 +76,7 @@ Staging and prod use external S3 (not MinIO). MinIO is local-only.
 - Type hints on all function signatures — `from __future__ import annotations` in every file
 - `structlog` for logging — never `print()` or `logging.getLogger()`
 - `ruff` for lint + format (`uv run ruff check . && uv run ruff format .`)
-- Playwright imports ONLY in `app/worker/` — never in `app/` elsewhere
+- Playwright is available in both containers. Browser automation code (PageFetcher, screenshot capture) lives in `app/worker/` unless there is a specific need to use it in the app process
 - Never log: secrets, passwords, session cookies, API keys
 
 ## Architecture
@@ -111,7 +111,7 @@ Implement `ConnectorBase` ABC (discover, extract_fields). Register in `Connector
 - `app/config/` — YAML-backed config, loaded at startup, injected via FastAPI `Depends()`; covers operational knobs (crawl limits, connector options, retention windows)
 
 ### Worker Isolation
-The RQ worker (`Dockerfile.worker`) is a separate container image with Playwright + Chromium. The `app` image has no browser. `app/worker/fetcher.py` and `app/worker/persist.py` are the only files that may import from `playwright`. The RQ job entry point (`app/jobs/tasks.py`) creates its own DB session — it does not share the FastAPI connection pool.
+The RQ worker (`Dockerfile.worker`) is a separate container image. Both app and worker images now include Playwright + Chromium. Browser automation code (`app/worker/fetcher.py`, `app/worker/persist.py`) runs via RQ background jobs in the worker. The RQ job entry point (`app/jobs/tasks.py`) creates its own DB session — it does not share the FastAPI connection pool.
 
 ### AI Assist (`app/ai/`)
 Optional feature, enabled by `config/ai/ai.yml`. Uses the Anthropic SDK with tool use to suggest criteria YAML and extraction rules. Rate-limited and CSRF-protected. Chat history is stored in Redis, not the DB.

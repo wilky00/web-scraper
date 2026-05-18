@@ -15,10 +15,19 @@
 
         <hr class="border-gray-200 dark:border-gray-700 mb-8">
 
+        {% set section_filenames = {
+            'app': 'config/app.yml',
+            'connectors': 'config/connectors.yml',
+            'crawl': 'config/crawl.yml',
+            'retention': 'config/retention.yml',
+        } %}
         {% if config_sections %}
             {% for section_name, yaml_text in config_sections.items() %}
             <section class="mb-8">
-                <h2 class="text-base font-semibold text-gray-800 dark:text-gray-200 mb-3 capitalize">{{ section_name }}</h2>
+                <div class="flex items-baseline justify-between mb-2">
+                    <h2 class="text-base font-semibold text-gray-800 dark:text-gray-200 capitalize">{{ section_name }}</h2>
+                    <span class="font-mono text-xs text-gray-400 dark:text-gray-500">{{ section_filenames.get(section_name, section_name + '.yml') }}</span>
+                </div>
                 <pre class="overflow-x-auto rounded-lg bg-gray-900 dark:bg-gray-950 border border-gray-700 dark:border-gray-800 p-4 text-xs text-green-300 dark:text-green-400 leading-relaxed"><code>{{ yaml_text }}</code></pre>
             </section>
             {% endfor %}
