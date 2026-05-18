@@ -37,7 +37,7 @@ jobs:
       - name: Run Semgrep
         run: semgrep scan --config=auto --severity=ERROR --error --sarif --output /tmp/semgrep.sarif .
       - name: Upload Semgrep SARIF
-        uses: github/codeql-action/upload-sarif@v3
+        uses: github/codeql-action/upload-sarif@v4
         if: always()
         with:
           sarif_file: /tmp/semgrep.sarif
@@ -57,7 +57,7 @@ jobs:
           format: sarif
           output: /tmp/trivy-results.sarif
       - name: Upload Trivy SARIF
-        uses: github/codeql-action/upload-sarif@v3
+        uses: github/codeql-action/upload-sarif@v4
         if: always()
         with:
           sarif_file: /tmp/trivy-results.sarif
@@ -69,18 +69,18 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        language: ["__PRIMARY_LANG__"]  # replaced by setup-project-ci.sh
+        language: ["python"]
     steps:
       - uses: actions/checkout@v4
       - name: Initialize CodeQL
-        uses: github/codeql-action/init@v3
+        uses: github/codeql-action/init@v4
         with:
           languages: ${{ matrix.language }}
           queries: security-extended
       - name: Autobuild
-        uses: github/codeql-action/autobuild@v3
+        uses: github/codeql-action/autobuild@v4
       - name: Perform CodeQL Analysis
-        uses: github/codeql-action/analyze@v3
+        uses: github/codeql-action/analyze@v4
         with:
           category: "/language:${{ matrix.language }}"
 
