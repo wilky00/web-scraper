@@ -82,9 +82,19 @@ async def new_job_form(
                 & (cv_alias.version == max_ver_subq.c.max_version),
             )
         )
-        latest_versions: dict[str, str] = {
-            str(v.group_id): str(v.id) for v in latest_result.scalars()
-        }
+        latest_versions: dict[str, str] = {}
+        version_configs: dict[str, dict] = {}
+        for v in latest_result.scalars():
+            gid = str(v.group_id)
+            latest_versions[gid] = str(v.id)
+            snap = v.config_snapshot or {}
+            source = snap.get("source") or {}
+            crawl_snap = snap.get("crawl") or {}
+            version_configs[gid] = {
+                "max_results": source.get("max_results"),
+                "max_depth": crawl_snap.get("max_depth"),
+                "delay_ms": crawl_snap.get("delay_ms"),
+            }
 
         groups_result = await db.execute(
             select(CriteriaGroup)
@@ -99,6 +109,7 @@ async def new_job_form(
                 "tags": g.tags or [],
                 "latest_version_id": latest_versions.get(str(g.id), ""),
                 "project_id": str(g.project_id) if g.project_id else "",
+                "config": version_configs.get(str(g.id), {}),
             }
             for g in groups_result.scalars()
             if str(g.id) in latest_versions
