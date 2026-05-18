@@ -116,7 +116,7 @@ async def _async_test_main(
             async with PageFetcher(crawl_config) as fetcher:
                 count = 0
                 async for conn_result in connector.discover(discover_config):
-                    if count >= 3:
+                    if count >= 20:
                         break
                     count += 1
 
