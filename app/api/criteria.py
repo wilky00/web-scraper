@@ -44,7 +44,7 @@ def _validation_html(
     if not errors:
         return (
             '<div class="rounded-md bg-green-50 dark:bg-green-900/20 border border-green-200'
-            " dark:border-green-800 p-4\">"
+            ' dark:border-green-800 p-4">'
             '<p class="text-sm font-medium text-green-800 dark:text-green-300">'
             "Valid YAML — ready to save.</p></div>"
         )
@@ -91,7 +91,7 @@ def _validation_html(
     items = "".join(_err_item(e) for e in errors)
     return (
         '<div class="rounded-md bg-red-50 dark:bg-red-900/20 border border-red-200'
-        " dark:border-red-800 p-4\">"
+        ' dark:border-red-800 p-4">'
         '<p class="text-sm font-medium text-red-800 dark:text-red-300 mb-2">Validation errors</p>'
         f'<ul class="space-y-1.5">{items}</ul>'
         "</div>"
@@ -139,6 +139,60 @@ def _render_editor(
             "ai_enabled": ai_enabled,
         },
         status_code=status_code,
+    )
+
+
+# ---------------------------------------------------------------------------
+# POST /api/criteria/scoring-info
+# ---------------------------------------------------------------------------
+
+
+@router.post("/api/criteria/scoring-info")
+async def scoring_info(
+    yaml_text: str = Form(...),
+    user: User = Depends(require_operator),
+) -> JSONResponse:
+    config, errors = validate_criteria_yaml(yaml_text)
+    if errors or config is None:
+        return JSONResponse({"rules": [], "minimum_score": 0, "enabled": True, "max_score": 0})
+
+    rules: list[dict] = []
+    for r in config.rules.exclude:
+        rules.append(
+            {"type": "exclude", "label": r.label or r.metric, "metric": r.metric, "weight": None}
+        )
+    for r in config.rules.must_have:
+        rules.append(
+            {"type": "must_have", "label": r.label or r.metric, "metric": r.metric, "weight": None}
+        )
+    for r in config.rules.should_have:
+        rules.append(
+            {
+                "type": "should_have",
+                "label": r.label or r.metric,
+                "metric": r.metric,
+                "weight": r.weight,
+            }
+        )
+    for r in config.scoring.weighted_rules:
+        rules.append(
+            {
+                "type": "weighted",
+                "label": r.label or r.metric,
+                "metric": r.metric,
+                "weight": r.weight,
+            }
+        )
+
+    scorable = config.rules.should_have + config.scoring.weighted_rules
+    max_score = round(sum(r.weight for r in scorable), 2)
+    return JSONResponse(
+        {
+            "rules": rules,
+            "minimum_score": config.scoring.minimum_score,
+            "enabled": config.scoring.enabled,
+            "max_score": max_score,
+        }
     )
 
 
@@ -243,9 +297,7 @@ async def create_criteria(
     if config.metadata.project:
         async with AsyncSession(request.app.state.engine) as _db:
             _proj = (
-                await _db.execute(
-                    select(Project).where(Project.name == config.metadata.project)
-                )
+                await _db.execute(select(Project).where(Project.name == config.metadata.project))
             ).scalar_one_or_none()
         if _proj is None:
             return _render_editor(
@@ -443,9 +495,7 @@ async def save_criteria_version(
         # Update project association from metadata.project tag
         if config.metadata.project:
             _proj2 = (
-                await db3.execute(
-                    select(Project).where(Project.name == config.metadata.project)
-                )
+                await db3.execute(select(Project).where(Project.name == config.metadata.project))
             ).scalar_one_or_none()
             group.project_id = _proj2.id if _proj2 else None
         else:
