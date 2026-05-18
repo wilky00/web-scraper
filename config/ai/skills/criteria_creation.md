@@ -184,6 +184,36 @@ All operators used in `rules` and `scoring.weighted_rules`:
 | `domain_matches` | Domain matches pattern | `"example.com"` |
 | `matches_regex` | Value matches regex | `"^https?://"` |
 
+**There is no `not_contains` operator.** To express "field must NOT contain X", put a `contains` rule in the `exclude` section instead:
+
+```yaml
+# WRONG — not_contains does not exist:
+rules:
+  must_have:
+    - metric: extraction.website
+      operator: not_contains      # invalid — will fail validation
+      value: "starbucks.com"
+
+# CORRECT — use exclude with contains:
+rules:
+  exclude:
+    - metric: extraction.website
+      operator: contains
+      value: "starbucks.com"
+      label: Is Starbucks website
+```
+
+To exclude records where a field matches any of several values, use `contains_any` in `exclude`:
+
+```yaml
+rules:
+  exclude:
+    - metric: source.name
+      operator: contains_any
+      value: ["Starbucks", "Dunkin", "McDonald's"]
+      label: Chain restaurant
+```
+
 ---
 
 ## Metric Namespaces
