@@ -29,7 +29,7 @@ document.addEventListener('DOMContentLoaded', function () {
     });
 });
 
-// After HTMX swaps the validation panel: highlight error lines + apply formatted YAML.
+// After HTMX swaps the validation panel: highlight the error line in the gutter and scroll into view.
 document.addEventListener('htmx:afterSettle', function (e) {
     if (!e.detail.target || e.detail.target.id !== 'validation-panel') return;
 
@@ -47,15 +47,7 @@ document.addEventListener('htmx:afterSettle', function (e) {
         }
     }
 
-    var fmtEl = document.getElementById('formatted-yaml');
-    if (fmtEl) {
-        var ta = document.getElementById('yaml_text');
-        if (ta && fmtEl.dataset.yaml && fmtEl.dataset.yaml !== ta.value) {
-            ta.value = fmtEl.dataset.yaml;
-            ta.dispatchEvent(new Event('input'));
-            syncLineNumbers();
-        }
-    }
+    e.detail.target.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
 });
 
 async function loadCriteriaTemplate(groupId) {
@@ -207,10 +199,9 @@ async function loadVersion(groupId, versionId) {
                             hx-post="/api/criteria/validate"
                             hx-target="#validation-panel"
                             hx-include="#yaml_text,#csrf-input"
-                            hx-vals='{"normalize": "true"}'
+                            hx-vals='{"normalize": true}'
                             hx-swap="innerHTML"
                             hx-indicator="#validate-btn-spinner"
-                            hx-on:htmx:after-request="document.getElementById('validation-panel').scrollIntoView({behavior:'smooth',block:'nearest'})"
                             class="inline-flex items-center gap-2 rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-200 shadow-sm hover:bg-gray-50 dark:hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 dark:focus:ring-offset-gray-900"
                         >
                             <span id="validate-btn-spinner" class="htmx-indicator">

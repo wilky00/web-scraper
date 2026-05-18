@@ -38,18 +38,10 @@ def _validation_html(
     *,
     parse_error_line: int | None = None,
     ai_hint: bool = False,
-    formatted_yaml: str | None = None,
 ) -> str:
     """Return an HTML fragment for the HTMX validation result panel."""
-    # Carry formatted YAML back to the frontend via a hidden data attribute.
-    fmt_carrier = ""
-    if formatted_yaml is not None:
-        escaped_yaml = _html.escape(formatted_yaml, quote=True)
-        fmt_carrier = f'<div id="formatted-yaml" class="hidden" data-yaml="{escaped_yaml}"></div>'
-
     if not errors:
         return (
-            f"{fmt_carrier}"
             '<div class="rounded-md bg-green-50 dark:bg-green-900/20 border border-green-200'
             " dark:border-green-800 p-4\">"
             '<p class="text-sm font-medium text-green-800 dark:text-green-300">'
@@ -72,7 +64,6 @@ def _validation_html(
             else ""
         )
         return (
-            f"{fmt_carrier}"
             '<div class="rounded-md bg-red-50 dark:bg-red-900/20 border border-red-200'
             f' dark:border-red-800 p-4">{line_marker}'
             '<p class="text-sm font-medium text-red-800 dark:text-red-300">'
@@ -98,7 +89,6 @@ def _validation_html(
 
     items = "".join(_err_item(e) for e in errors)
     return (
-        f"{fmt_carrier}"
         '<div class="rounded-md bg-red-50 dark:bg-red-900/20 border border-red-200'
         " dark:border-red-800 p-4\">"
         '<p class="text-sm font-medium text-red-800 dark:text-red-300 mb-2">Validation errors</p>'
@@ -182,19 +172,16 @@ async def validate_criteria(
         )
 
     # Step 2: normalize (reformat) when requested by the manual Validate button.
-    formatted_yaml: str | None = None
+    # The server validates against the normalized form but does not push it back to the editor.
     yaml_to_validate = yaml_text
     if normalize:
-        normalized = yaml.dump(
+        yaml_to_validate = yaml.dump(
             parsed, sort_keys=False, allow_unicode=True, default_flow_style=False
         )
-        if normalized.strip() != yaml_text.strip():
-            formatted_yaml = normalized
-        yaml_to_validate = normalized
 
     # Step 3: Pydantic logic validation.
     _, errors = validate_criteria_yaml(yaml_to_validate)
-    return HTMLResponse(content=_validation_html(errors, formatted_yaml=formatted_yaml))
+    return HTMLResponse(content=_validation_html(errors))
 
 
 # ---------------------------------------------------------------------------
