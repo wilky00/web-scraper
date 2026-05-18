@@ -1,8 +1,55 @@
 {% extends "base.html" %}
 {% block title %}{% if group %}{{ group.display_name }} — {% endif %}Criteria Editor — Web Scraper{% endblock %}
 {% block head %}
-<style>.htmx-indicator{display:none}.htmx-request .htmx-indicator{display:inline-flex;align-items:center}</style>
 <script>
+var _validationTimer = null;
+
+async function runValidation() {
+    var ta = document.getElementById('yaml_text');
+    var panel = document.getElementById('validation-panel');
+    if (!ta || !panel) return;
+
+    var fd = new FormData();
+    fd.append('yaml_text', ta.value);
+    var csrfEl = document.getElementById('csrf-input');
+    if (csrfEl) fd.append('csrf_token', csrfEl.value);
+    fd.append('normalize', 'true');
+
+    var spinner = document.getElementById('validate-btn-spinner');
+    if (spinner) spinner.classList.remove('hidden');
+
+    try {
+        var resp = await fetch('/api/criteria/validate', { method: 'POST', body: fd });
+        panel.innerHTML = await resp.text();
+        _highlightErrorLine(panel);
+        panel.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    } catch (err) {
+        console.error('Validation failed', err);
+    } finally {
+        if (spinner) spinner.classList.add('hidden');
+    }
+}
+
+function _highlightErrorLine(panel) {
+    var gutter = document.getElementById('line-numbers');
+    if (!gutter) return;
+    Array.from(gutter.children).forEach(function(d) {
+        d.classList.remove('text-red-500', 'font-bold');
+    });
+    var errLineEl = panel.querySelector('[data-error-line]');
+    if (errLineEl) {
+        var n = parseInt(errLineEl.dataset.errorLine, 10);
+        if (!isNaN(n) && gutter.children[n - 1]) {
+            gutter.children[n - 1].classList.add('text-red-500', 'font-bold');
+        }
+    }
+}
+
+function scheduleValidation() {
+    clearTimeout(_validationTimer);
+    _validationTimer = setTimeout(runValidation, 700);
+}
+
 function syncLineNumbers() {
     var ta = document.getElementById('yaml_text');
     var gutter = document.getElementById('line-numbers');
@@ -19,35 +66,23 @@ function syncLineNumbers() {
     gutter.scrollTop = ta.scrollTop;
 }
 
-document.addEventListener('DOMContentLoaded', function () {
+document.addEventListener('DOMContentLoaded', function() {
     var ta = document.getElementById('yaml_text');
-    if (!ta) return;
-    syncLineNumbers();
-    ta.addEventListener('input', syncLineNumbers);
-    ta.addEventListener('scroll', function () {
-        document.getElementById('line-numbers').scrollTop = ta.scrollTop;
-    });
-});
-
-// After HTMX swaps the validation panel: highlight the error line in the gutter and scroll into view.
-document.addEventListener('htmx:afterSettle', function (e) {
-    if (!e.detail.target || e.detail.target.id !== 'validation-panel') return;
-
-    var gutter = document.getElementById('line-numbers');
-    if (gutter) {
-        Array.from(gutter.children).forEach(function (d) {
-            d.classList.remove('text-red-500', 'font-bold');
+    if (ta) {
+        syncLineNumbers();
+        ta.addEventListener('input', syncLineNumbers);
+        ta.addEventListener('input', scheduleValidation);
+        ta.addEventListener('scroll', function() {
+            document.getElementById('line-numbers').scrollTop = ta.scrollTop;
         });
-        var errLineEl = e.detail.target.querySelector('[data-error-line]');
-        if (errLineEl) {
-            var n = parseInt(errLineEl.dataset.errorLine, 10);
-            if (!isNaN(n) && gutter.children[n - 1]) {
-                gutter.children[n - 1].classList.add('text-red-500', 'font-bold');
-            }
-        }
     }
-
-    e.detail.target.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    var validateBtn = document.getElementById('validate-btn');
+    if (validateBtn) {
+        validateBtn.addEventListener('click', function() {
+            clearTimeout(_validationTimer);
+            runValidation();
+        });
+    }
 });
 
 async function loadCriteriaTemplate(groupId) {
@@ -162,25 +197,11 @@ async function loadVersion(groupId, versionId) {
                                 spellcheck="false"
                                 autocomplete="off"
                                 class="flex-1 px-4 py-3 font-mono text-sm leading-5 bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 placeholder-gray-400 focus:outline-none resize-y"
-                                hx-post="/api/criteria/validate"
-                                hx-trigger="input delay:700ms, keyup[key=='Enter'] delay:300ms"
-                                hx-target="#validation-panel"
-                                hx-include="#csrf-input"
-                                hx-swap="innerHTML"
                                 aria-label="Criteria YAML"
                                 x-on:input="const m = $event.target.value.match(/display_name:\s*(.+)/); criteriaName = (m && m[1].trim()) || '{% if group %}{{ group.display_name | e }}{% else %}What do you want to search for today?{% endif %}'"
                             >{{ yaml_text }}</textarea>
                         </div>
                         {# x-ref is not used here — the AI chat panel targets this textarea by id #}
-                    </div>
-
-                    <!-- Validation panel — populated by HTMX on keystroke -->
-                    <div id="validation-panel" class="min-h-[3rem]">
-                        {% if not errors %}
-                        <div class="rounded-md bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 p-4">
-                            <p class="text-sm text-gray-400 dark:text-gray-500">Type YAML above — validation runs automatically.</p>
-                        </div>
-                        {% endif %}
                     </div>
 
                     <div class="flex items-center gap-3 pt-2">
@@ -195,16 +216,11 @@ async function loadVersion(groupId, versionId) {
                             Save Template
                         </button>
                         <button
+                            id="validate-btn"
                             type="button"
-                            hx-post="/api/criteria/validate"
-                            hx-target="#validation-panel"
-                            hx-include="#yaml_text,#csrf-input"
-                            hx-vals='{"normalize": true}'
-                            hx-swap="innerHTML"
-                            hx-indicator="#validate-btn-spinner"
                             class="inline-flex items-center gap-2 rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-200 shadow-sm hover:bg-gray-50 dark:hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 dark:focus:ring-offset-gray-900"
                         >
-                            <span id="validate-btn-spinner" class="htmx-indicator">
+                            <span id="validate-btn-spinner" class="hidden">
                                 <svg class="animate-spin h-3 w-3 text-gray-500 dark:text-gray-400" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" aria-hidden="true">
                                     <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
                                     <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
@@ -213,7 +229,7 @@ async function loadVersion(groupId, versionId) {
                             Validate
                         </button>
                         <a
-                            href="/criteria"
+                            href="/criteria/new"
                             class="text-sm text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200"
                         >
                             Cancel
@@ -230,6 +246,16 @@ async function loadVersion(groupId, versionId) {
                         {% endif %}
                     </div>
                 </form>
+
+                <!-- Validation panel — populated by JS fetch on keystroke or Validate click -->
+                <div id="validation-panel" class="min-h-[3rem]">
+                    {% if not errors %}
+                    <div class="rounded-md bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 p-4">
+                        <p class="text-sm text-gray-400 dark:text-gray-500">Type YAML above or click Validate — feedback appears here.</p>
+                    </div>
+                    {% endif %}
+                </div>
+
                 {% if group %}
                 <div x-show="showSaveAs"
                      x-transition
@@ -319,7 +345,18 @@ async function loadVersion(groupId, versionId) {
                 <!-- Templates picker -->
                 {% if templates is defined %}
                 <div class="rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 shadow-sm overflow-hidden"
-                     x-data="{ open: {% if not group %}true{% else %}false{% endif %}, search: '' }">
+                     x-data="{
+                         open: {% if not group %}true{% else %}false{% endif %},
+                         search: '',
+                         templates: {{ templates | tojson }},
+                         filtered() {
+                             if (!this.search) return this.templates;
+                             var q = this.search.toLowerCase();
+                             return this.templates.filter(function(t) {
+                                 return ((t.display_name || '') + ' ' + (t.description || '') + ' ' + (t.tags || []).join(' ')).toLowerCase().indexOf(q) !== -1;
+                             });
+                         }
+                     }">
                     <div class="px-4 py-3 border-b border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900/50 cursor-pointer select-none flex items-center justify-between"
                          @click="open = !open">
                         <h2 class="text-sm font-semibold text-gray-700 dark:text-gray-300">
@@ -336,30 +373,32 @@ async function loadVersion(groupId, versionId) {
                     <div x-show="open" x-transition>
                         {% if templates %}
                         <div class="px-3 py-2 border-b border-gray-100 dark:border-gray-700/50">
-                            <input type="text" x-model="search" placeholder="Filter templates…"
+                            <input type="text" x-model="search" placeholder="Search templates…"
                                    class="w-full rounded border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900 px-2 py-1 text-xs text-gray-700 dark:text-gray-300 placeholder-gray-400 focus:outline-none focus:ring-1 focus:ring-blue-500"
-                                   aria-label="Filter templates" />
+                                   aria-label="Search templates" />
                         </div>
                         <ul class="divide-y divide-gray-100 dark:divide-gray-700/50 max-h-72 overflow-y-auto">
-                            {% for t in templates %}
-                            <li class="px-3 py-2.5"
-                                x-show="!search || '{{ (t.display_name ~ ' ' ~ t.description ~ ' ' ~ (t.tags | join(' '))) | lower | e }}'.includes(search.toLowerCase())">
-                                <div class="flex items-start justify-between gap-2">
-                                    <div class="min-w-0">
-                                        <p class="text-xs font-medium text-gray-800 dark:text-gray-200 leading-tight truncate">{{ t.display_name }}</p>
-                                        {% if t.description %}
-                                        <p class="mt-0.5 text-xs text-gray-400 dark:text-gray-500 line-clamp-2 leading-tight">{{ t.description[:120] }}{% if t.description|length > 120 %}…{% endif %}</p>
-                                        {% endif %}
+                            <template x-for="t in filtered()" :key="t.id">
+                                <li class="px-3 py-2.5">
+                                    <div class="flex items-start justify-between gap-2">
+                                        <div class="min-w-0">
+                                            <p class="text-xs font-medium text-gray-800 dark:text-gray-200 leading-tight truncate" x-text="t.display_name"></p>
+                                            <p class="mt-0.5 text-xs text-gray-400 dark:text-gray-500 line-clamp-2 leading-tight"
+                                               x-show="t.description"
+                                               x-text="t.description && t.description.length > 120 ? t.description.substring(0, 120) + '…' : t.description"></p>
+                                        </div>
+                                        <button type="button"
+                                                @click="loadCriteriaTemplate(t.id)"
+                                                class="flex-shrink-0 text-xs font-medium text-blue-600 dark:text-blue-400 hover:underline whitespace-nowrap"
+                                                :aria-label="'Load template ' + t.display_name">
+                                            Load
+                                        </button>
                                     </div>
-                                    <button type="button"
-                                            onclick="loadCriteriaTemplate('{{ t.id }}')"
-                                            class="flex-shrink-0 text-xs font-medium text-blue-600 dark:text-blue-400 hover:underline whitespace-nowrap"
-                                            aria-label="Load template {{ t.display_name | e }}">
-                                        Load
-                                    </button>
-                                </div>
+                                </li>
+                            </template>
+                            <li x-show="filtered().length === 0" class="px-3 py-4 text-center">
+                                <p class="text-xs text-gray-400 dark:text-gray-500">No matching templates.</p>
                             </li>
-                            {% endfor %}
                         </ul>
                         {% else %}
                         <div class="px-4 py-4 text-center">
