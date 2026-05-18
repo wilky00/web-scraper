@@ -15,9 +15,10 @@ from fastapi.responses import JSONResponse, Response
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.auth.permissions import require_api_token, require_operator
+from app.auth.permissions import ProjectTokenContext, require_api_token, require_operator
 from app.auth.session import SESSION_COOKIE, get_session
 from app.models.audit import RecordAuditLog
+from app.models.job import CrawlJob
 from app.models.record import BusinessRecord, RecordSource
 from app.models.user import User
 from app.settings import Settings
@@ -38,6 +39,21 @@ _SORT_COLUMNS: dict[str, Any] = {
 
 # Module-level dependency instances — stored so tests can override via dependency_overrides.
 _require_records_read = require_api_token("records:read")
+_require_records_write = require_api_token("records:write")
+
+_BULK_DELETE_LIMIT = 500
+_VALID_STATUSES = {"active", "duplicate", "excluded", "deleted"}
+_PATCHABLE_FIELDS = {
+    "name",
+    "website",
+    "email",
+    "phone",
+    "address",
+    "location_city",
+    "location_state",
+    "location_country",
+    "status",
+}
 
 
 async def _check_csrf(
@@ -232,6 +248,59 @@ async def delete_record(
     return Response(status_code=200, headers={"HX-Redirect": "/records"})
 
 
+@router.post("/api/records/bulk-delete")
+async def bulk_delete_records(
+    request: Request,
+    session_cookie: str | None = Cookie(default=None, alias=SESSION_COOKIE),
+    user: User = Depends(require_operator),
+) -> JSONResponse:
+    """Soft-delete up to 500 records in one request. Session-authenticated (web UI only)."""
+    try:
+        body = await request.json()
+    except Exception:
+        return JSONResponse({"error": "Request body must be JSON"}, status_code=400)
+
+    csrf_token = body.get("csrf_token", "")
+    if not await _check_csrf(request, csrf_token, session_cookie):
+        return JSONResponse({"error": "Invalid CSRF token"}, status_code=403)
+
+    ids_raw: list[str] = body.get("ids", [])
+    if not ids_raw:
+        return JSONResponse({"error": "No record IDs provided"}, status_code=422)
+    if len(ids_raw) > _BULK_DELETE_LIMIT:
+        return JSONResponse({"error": f"Too many IDs — max {_BULK_DELETE_LIMIT}"}, status_code=422)
+
+    parsed_ids: list[uuid.UUID] = []
+    for raw in ids_raw:
+        try:
+            parsed_ids.append(uuid.UUID(raw))
+        except ValueError:
+            return JSONResponse({"error": f"Invalid record ID: {raw!r}"}, status_code=422)
+
+    deleted = 0
+    async with AsyncSession(request.app.state.engine) as db:
+        for rid in parsed_ids:
+            record: BusinessRecord | None = await db.get(BusinessRecord, rid)
+            if record is None or record.status == "deleted":
+                continue
+            previous_status = record.status
+            record.status = "deleted"
+            db.add(
+                RecordAuditLog(
+                    user_id=user.id,
+                    action="delete",
+                    resource_type="business_record",
+                    resource_id=str(rid),
+                    diff={"previous_status": previous_status, "bulk": True},
+                )
+            )
+            deleted += 1
+        await db.commit()
+
+    logger.info("record.bulk_deleted", count=deleted, user_id=str(user.id))
+    return JSONResponse({"deleted": deleted})
+
+
 # ── Machine-readable REST endpoints (Bearer token auth) ──────────────────────
 
 
@@ -265,7 +334,7 @@ async def api_list_records(
     sort: str = Query(default="created_at"),
     order: str = Query(default="desc"),
     page: int = Query(default=1, ge=1),
-    user: User = Depends(_require_records_read),
+    caller: User | ProjectTokenContext = Depends(_require_records_read),
 ) -> JSONResponse:
     if sort not in _SORT_COLUMNS:
         sort = "created_at"
@@ -273,6 +342,11 @@ async def api_list_records(
         order = "desc"
 
     base_query = select(BusinessRecord)
+
+    # Project-scoped tokens restrict results to records from that project's jobs
+    if isinstance(caller, ProjectTokenContext):
+        project_job_ids = select(CrawlJob.id).where(CrawlJob.project_id == caller.project_id)
+        base_query = base_query.where(BusinessRecord.job_id.in_(project_job_ids))
 
     if q.strip():
         base_query = base_query.where(BusinessRecord.name.ilike(f"%{q.strip()}%"))
@@ -340,7 +414,7 @@ async def api_list_records(
 async def api_get_record(
     record_id: str,
     request: Request,
-    user: User = Depends(_require_records_read),
+    caller: User | ProjectTokenContext = Depends(_require_records_read),
 ) -> JSONResponse:
     try:
         parsed_id = uuid.UUID(record_id)
@@ -351,6 +425,12 @@ async def api_get_record(
         record: BusinessRecord | None = await db.get(BusinessRecord, parsed_id)
         if record is None:
             return JSONResponse({"data": None, "errors": ["Record not found"]}, status_code=404)
+
+        # Project-scoped tokens can only access records from their project's jobs
+        if isinstance(caller, ProjectTokenContext) and record.job_id is not None:
+            job: CrawlJob | None = await db.get(CrawlJob, record.job_id)
+            if job is None or job.project_id != caller.project_id:
+                return JSONResponse({"data": None, "errors": ["Record not found"]}, status_code=404)
 
         sources_result = await db.execute(
             select(RecordSource)
@@ -377,3 +457,63 @@ async def api_get_record(
             "errors": [],
         }
     )
+
+
+@router.patch("/api/records/{record_id}")
+async def api_patch_record(
+    record_id: str,
+    request: Request,
+    caller: User | ProjectTokenContext = Depends(_require_records_write),
+) -> JSONResponse:
+    """Partially update a record's fields. Requires records:write scope.
+
+    Accepts a JSON body with any subset of patchable fields. Unknown fields are ignored.
+    If `status` is provided it must be a valid status value.
+    """
+    try:
+        parsed_id = uuid.UUID(record_id)
+    except ValueError:
+        return JSONResponse({"data": None, "errors": ["Invalid record ID"]}, status_code=422)
+
+    try:
+        body = await request.json()
+    except Exception:
+        return JSONResponse(
+            {"data": None, "errors": ["Request body must be JSON"]}, status_code=400
+        )
+
+    updates = {k: v for k, v in body.items() if k in _PATCHABLE_FIELDS}
+    if not updates:
+        return JSONResponse(
+            {"data": None, "errors": ["No patchable fields provided"]}, status_code=422
+        )
+
+    if "status" in updates and updates["status"] not in _VALID_STATUSES:
+        return JSONResponse(
+            {"data": None, "errors": [f"Invalid status {updates['status']!r}"]}, status_code=422
+        )
+
+    async with AsyncSession(request.app.state.engine) as db:
+        record: BusinessRecord | None = await db.get(BusinessRecord, parsed_id)
+        if record is None:
+            return JSONResponse({"data": None, "errors": ["Record not found"]}, status_code=404)
+
+        before = {k: getattr(record, k) for k in updates}
+        for field, value in updates.items():
+            setattr(record, field, value or None if isinstance(value, str) else value)
+
+        audit_user_id = caller.id if isinstance(caller, User) else None
+        db.add(
+            RecordAuditLog(
+                user_id=audit_user_id,
+                action="update",
+                resource_type="business_record",
+                resource_id=str(parsed_id),
+                diff={"before": before, "after": updates, "source": "api"},
+            )
+        )
+        await db.commit()
+        await db.refresh(record)
+
+    logger.info("record.patched", record_id=record_id, fields=list(updates.keys()))
+    return JSONResponse({"data": _record_to_dict(record), "errors": []})

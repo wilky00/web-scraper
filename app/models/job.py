@@ -30,6 +30,9 @@ class CrawlJob(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     created_by: Mapped[uuid.UUID | None] = mapped_column(
         ForeignKey("users.id", ondelete="SET NULL"), nullable=True
     )
+    project_id: Mapped[uuid.UUID | None] = mapped_column(
+        ForeignKey("projects.id", ondelete="SET NULL"), nullable=True, index=True
+    )
     rq_job_id: Mapped[str | None] = mapped_column(String(255), nullable=True)
 
     events: Mapped[list[CrawlJobEvent]] = relationship(

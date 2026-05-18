@@ -14,6 +14,7 @@ var _templateData = {{ criteria_groups | tojson }};
          selectedGroupName: null,
          selectedGroupDescription: '',
          connectorId: '',
+         projectId: '',
          maxPages: {{ default_config.max_pages_per_job }},
          delayMs: {{ default_config.delay_between_requests_ms }},
          maxDepth: {{ default_config.max_depth }},
@@ -46,6 +47,7 @@ var _templateData = {{ criteria_groups | tojson }};
                      body: JSON.stringify({
                          connector_id: this.connectorId,
                          criteria_version_id: this.selectedVersionId,
+                         project_id: this.projectId || null,
                          config: {
                              max_pages_per_job: parseInt(this.maxPages),
                              delay_between_requests_ms: parseInt(this.delayMs),
@@ -161,6 +163,24 @@ var _templateData = {{ criteria_groups | tojson }};
                     <p class="text-sm text-gray-400 dark:text-gray-500">No active connectors configured. Add one in <a href="/settings" class="text-blue-600 dark:text-blue-400 hover:underline">Settings</a>.</p>
                     {% endif %}
                 </div>
+
+                <!-- Project (optional) -->
+                {% if projects %}
+                <div class="rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 shadow-sm p-5">
+                    <h2 class="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-1">Project <span class="text-xs font-normal text-gray-400">(optional)</span></h2>
+                    <p class="text-xs text-gray-400 dark:text-gray-500 mb-3">Assign this job to a project so its records are accessible via a project-scoped API key.</p>
+                    <select
+                        x-model="projectId"
+                        class="block w-full rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 px-3 py-2 text-sm text-gray-700 dark:text-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        aria-label="Assign to project"
+                    >
+                        <option value="">No project</option>
+                        {% for p in projects %}
+                        <option value="{{ p.id }}">{{ p.name }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                {% endif %}
 
                 <!-- Selected template -->
                 <div class="rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 shadow-sm p-5">

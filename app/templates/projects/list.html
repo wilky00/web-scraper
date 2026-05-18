@@ -1,0 +1,64 @@
+{% extends "base.html" %}
+{% block title %}Projects — Web Scraper{% endblock %}
+{% block content %}
+<div class="min-h-screen p-8">
+    <div class="mx-auto max-w-5xl">
+
+        <div class="mb-6 flex items-center justify-between">
+            <div>
+                <h1 class="text-2xl font-semibold tracking-tight text-gray-900 dark:text-gray-100">Projects</h1>
+                <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">Group jobs and issue scoped API keys for downstream systems.</p>
+            </div>
+            <a
+                href="/projects/new"
+                class="inline-flex items-center rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
+            >New Project</a>
+        </div>
+
+        {% if not projects %}
+        <div class="rounded-lg border border-dashed border-gray-300 dark:border-gray-700 p-12 text-center">
+            <p class="text-sm font-medium text-gray-900 dark:text-gray-100">No projects yet</p>
+            <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">Create a project to group jobs and generate scoped API keys for downstream access.</p>
+            <a href="/projects/new" class="mt-4 inline-flex items-center rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700">New Project</a>
+        </div>
+        {% else %}
+        <div class="overflow-hidden rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 shadow-sm">
+            <table class="min-w-full divide-y divide-gray-200 dark:divide-gray-700 text-sm">
+                <thead class="bg-gray-50 dark:bg-gray-900/50">
+                    <tr>
+                        <th scope="col" class="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">Name</th>
+                        <th scope="col" class="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">Jobs</th>
+                        <th scope="col" class="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">Active Keys</th>
+                        <th scope="col" class="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">Created</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-gray-100 dark:divide-gray-700/50">
+                    {% for project in projects %}
+                    <tr class="hover:bg-gray-50 dark:hover:bg-gray-700/30 transition-colors">
+                        <td class="px-6 py-4">
+                            <a href="/projects/{{ project.id }}" class="font-medium text-blue-600 dark:text-blue-400 hover:underline">{{ project.name }}</a>
+                            {% if project.description %}
+                            <div class="text-xs text-gray-400 dark:text-gray-500 truncate max-w-xs">{{ project.description }}</div>
+                            {% endif %}
+                        </td>
+                        <td class="px-6 py-4 text-gray-700 dark:text-gray-300">{{ project.job_count }}</td>
+                        <td class="px-6 py-4">
+                            {% if project.key_count > 0 %}
+                            <span class="inline-flex items-center gap-1 rounded-full bg-green-100 dark:bg-green-900/30 px-2 py-0.5 text-xs font-medium text-green-700 dark:text-green-400">
+                                {{ project.key_count }} active
+                            </span>
+                            {% else %}
+                            <span class="text-gray-400 dark:text-gray-500 text-xs">none</span>
+                            {% endif %}
+                        </td>
+                        <td class="px-6 py-4 text-gray-500 dark:text-gray-400">{{ project.created_at }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% endif %}
+
+    </div>
+</div>
+{% endblock %}

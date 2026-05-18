@@ -7,11 +7,13 @@
         <h1 class="text-2xl font-semibold tracking-tight text-gray-900 dark:text-gray-100 mb-2">Settings</h1>
         <p class="text-sm text-gray-500 dark:text-gray-400 mb-8">Active runtime configuration. Secret values are redacted.</p>
 
-        <section class="mb-8">
-            <h2 class="text-base font-semibold text-gray-800 dark:text-gray-200 mb-1">API Token</h2>
-            <p class="text-sm text-gray-500 dark:text-gray-400 mb-4">Token grants access to <code class="text-xs font-mono">records:read</code> and <code class="text-xs font-mono">records:write</code> scopes. One token per user.</p>
-            {% include "settings/_token_panel.html" %}
-        </section>
+        <div class="mb-8 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 px-5 py-4">
+            <p class="text-sm text-gray-600 dark:text-gray-300">
+                API token management has moved to the
+                <a href="/exports" class="text-blue-600 dark:text-blue-400 underline hover:text-blue-800 dark:hover:text-blue-200">Exports</a>
+                page.
+            </p>
+        </div>
 
         <hr class="border-gray-200 dark:border-gray-700 mb-8">
 

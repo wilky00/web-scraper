@@ -15,6 +15,8 @@ from app.models import (
     CriteriaGroup,
     CriteriaVersion,
     Export,
+    Project,
+    ProjectApiKey,
     RawSearchResult,
     RecordAuditLog,
     RecordSource,
@@ -34,6 +36,8 @@ ALL_MODELS = [
     RecordSource,
     RecordAuditLog,
     Export,
+    Project,
+    ProjectApiKey,
 ]
 
 EXPECTED_TABLE_NAMES = {
@@ -49,10 +53,12 @@ EXPECTED_TABLE_NAMES = {
     "record_sources",
     "record_audit_log",
     "exports",
+    "projects",
+    "project_api_keys",
 }
 
 
-def test_all_twelve_tables_registered() -> None:
+def test_all_fourteen_tables_registered() -> None:
     tables = set(Base.metadata.tables.keys())
     assert tables == EXPECTED_TABLE_NAMES, (
         f"Missing: {EXPECTED_TABLE_NAMES - tables}  Extra: {tables - EXPECTED_TABLE_NAMES}"
@@ -67,9 +73,12 @@ def test_model_has_uuid_primary_key(model: type) -> None:
     assert pk_cols[0].name == "id"
 
 
+_APPEND_ONLY_MODELS = (CrawlJobEvent, RecordAuditLog, Project, ProjectApiKey)
+
+
 @pytest.mark.parametrize(
     "model",
-    [m for m in ALL_MODELS if m not in (CrawlJobEvent, RecordAuditLog)],
+    [m for m in ALL_MODELS if m not in _APPEND_ONLY_MODELS],
 )
 def test_timestamped_models_have_created_and_updated_at(model: type) -> None:
     mapper = sa_inspect(model)
@@ -78,7 +87,7 @@ def test_timestamped_models_have_created_and_updated_at(model: type) -> None:
     assert "updated_at" in col_names, f"{model.__name__} missing updated_at"
 
 
-@pytest.mark.parametrize("model", [CrawlJobEvent, RecordAuditLog])
+@pytest.mark.parametrize("model", list(_APPEND_ONLY_MODELS))
 def test_append_only_models_have_only_created_at(model: type) -> None:
     mapper = sa_inspect(model)
     col_names = {c.name for c in mapper.columns}

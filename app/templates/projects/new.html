@@ -1,0 +1,53 @@
+{% extends "base.html" %}
+{% block title %}New Project — Web Scraper{% endblock %}
+{% block content %}
+<div class="min-h-screen p-8">
+    <div class="mx-auto max-w-2xl">
+
+        <div class="mb-6">
+            <a href="/projects" class="text-sm text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200">← Back to Projects</a>
+        </div>
+
+        <h1 class="text-2xl font-semibold tracking-tight text-gray-900 dark:text-gray-100 mb-6">New Project</h1>
+
+        <div class="rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 shadow-sm p-6">
+            <form hx-post="/api/projects" hx-target="body" class="space-y-5">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+
+                <div>
+                    <label for="name" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Project Name <span class="text-red-500" aria-hidden="true">*</span></label>
+                    <input
+                        type="text"
+                        id="name"
+                        name="name"
+                        required
+                        autocomplete="off"
+                        class="w-full rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 px-3 py-2 text-sm text-gray-900 dark:text-gray-100 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        placeholder="e.g. Nashville Barbershops"
+                    >
+                </div>
+
+                <div>
+                    <label for="description" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Description <span class="text-xs text-gray-400 font-normal">(optional)</span></label>
+                    <textarea
+                        id="description"
+                        name="description"
+                        rows="3"
+                        class="w-full rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 px-3 py-2 text-sm text-gray-900 dark:text-gray-100 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none"
+                        placeholder="What is this project for?"
+                    ></textarea>
+                </div>
+
+                <div class="flex justify-end gap-3 pt-2">
+                    <a href="/projects" class="rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700">Cancel</a>
+                    <button
+                        type="submit"
+                        class="rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
+                    >Create Project</button>
+                </div>
+            </form>
+        </div>
+
+    </div>
+</div>
+{% endblock %}

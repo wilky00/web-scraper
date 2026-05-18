@@ -63,7 +63,12 @@ async def exports_list(
     return templates.TemplateResponse(
         request,
         "exports/list.html",
-        {"user": user, "csrf_token": csrf_token, "exports": exports},
+        {
+            "user": user,
+            "csrf_token": csrf_token,
+            "exports": exports,
+            "has_api_token": user.api_key_hash is not None,
+        },
     )
 
 

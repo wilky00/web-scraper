@@ -8,6 +8,7 @@ from app.models.connector import Connector
 from app.models.crawl import CrawlPage
 from app.models.criteria import CriteriaGroup, CriteriaVersion
 from app.models.job import CrawlJob, CrawlJobEvent
+from app.models.project import Project, ProjectApiKey
 from app.models.raw_result import RawSearchResult
 from app.models.record import BusinessRecord, RecordSource
 from app.models.user import User
@@ -28,4 +29,6 @@ __all__ = [
     "RecordSource",
     "RecordAuditLog",
     "Export",
+    "Project",
+    "ProjectApiKey",
 ]

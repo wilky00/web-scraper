@@ -19,6 +19,7 @@ from app.config.models import CrawlConfig
 from app.models.connector import Connector
 from app.models.criteria import CriteriaGroup, CriteriaVersion
 from app.models.job import CrawlJob, CrawlJobEvent
+from app.models.project import Project
 from app.models.record import BusinessRecord
 from app.models.user import User
 from app.settings import Settings
@@ -97,6 +98,9 @@ async def new_job_form(
             if str(g.id) in latest_versions
         ]
 
+        projects_result = await db.execute(select(Project).order_by(Project.name))
+        projects = [{"id": str(p.id), "name": p.name} for p in projects_result.scalars()]
+
     # Default crawl config values for the form
     app_crawl: CrawlConfig = request.app.state.config.crawl
     default_config = {
@@ -114,6 +118,7 @@ async def new_job_form(
             "default_config": default_config,
             "csrf_token": csrf_token,
             "user": user,
+            "projects": projects,
         },
     )
 

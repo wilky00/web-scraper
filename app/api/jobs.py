@@ -20,6 +20,7 @@ from app.auth.session import SESSION_COOKIE, get_session
 from app.models.connector import Connector
 from app.models.criteria import CriteriaVersion
 from app.models.job import CrawlJob
+from app.models.project import Project
 from app.models.user import User
 from app.settings import Settings
 from app.worker.persist import log_crawl_event
@@ -98,6 +99,14 @@ async def create_job(
             except (TypeError, ValueError):
                 return JSONResponse({"error": f"config.{key} must be an integer"}, status_code=422)
 
+    project_id: uuid.UUID | None = None
+    project_id_str = body.get("project_id")
+    if project_id_str:
+        try:
+            project_id = uuid.UUID(project_id_str)
+        except ValueError:
+            return JSONResponse({"error": "Invalid project_id format"}, status_code=422)
+
     async with AsyncSession(request.app.state.engine) as db:
         connector: Connector | None = await db.get(Connector, connector_id)
         if connector is None:
@@ -108,6 +117,11 @@ async def create_job(
         )
         if criteria_version is None:
             return JSONResponse({"error": "CriteriaVersion not found"}, status_code=404)
+
+        if project_id is not None:
+            project: Project | None = await db.get(Project, project_id)
+            if project is None:
+                return JSONResponse({"error": "Project not found"}, status_code=404)
 
         config_snapshot: dict[str, Any] = {
             "criteria": criteria_version.config_snapshot,
@@ -122,6 +136,7 @@ async def create_job(
             status="queued",
             config_snapshot=config_snapshot,
             created_by=user.id,
+            project_id=project_id,
         )
         db.add(crawl_job)
         await db.flush()

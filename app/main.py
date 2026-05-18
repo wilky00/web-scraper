@@ -21,6 +21,7 @@ from app.api.connectors import router as api_connectors_router
 from app.api.criteria import router as api_criteria_router
 from app.api.exports import router as api_exports_router
 from app.api.jobs import router as api_jobs_router
+from app.api.projects import router as api_projects_router
 from app.api.records import router as api_records_router
 from app.auth.oidc import load_oidc_discovery
 from app.auth.oidc import sso_enabled as _oidc_sso_enabled
@@ -37,6 +38,7 @@ from app.web.criteria import router as web_criteria_router
 from app.web.dashboard import router as web_dashboard_router
 from app.web.exports import router as web_exports_router
 from app.web.jobs import router as web_jobs_router
+from app.web.projects import router as web_projects_router
 from app.web.records import router as web_records_router
 from app.web.settings_page import router as web_settings_router
 
@@ -84,9 +86,7 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         from app.api.ai import _AI_MODELS_CACHE_KEY, _AI_MODELS_CACHE_TTL
 
         try:
-            _ai_models = await _fetch_models(
-                app.state.config.ai.base_url, settings.ai_api_key
-            )
+            _ai_models = await _fetch_models(app.state.config.ai.base_url, settings.ai_api_key)
             if _ai_models:
                 await app.state.redis.set(
                     _AI_MODELS_CACHE_KEY, _json.dumps(_ai_models), ex=_AI_MODELS_CACHE_TTL
@@ -158,6 +158,7 @@ app.include_router(web_audit_router)
 app.include_router(web_criteria_router)
 app.include_router(web_exports_router)
 app.include_router(web_jobs_router)
+app.include_router(web_projects_router)
 app.include_router(web_records_router)
 app.include_router(web_settings_router)
 app.include_router(api_ai_router)
@@ -166,6 +167,7 @@ app.include_router(api_connectors_router)
 app.include_router(api_criteria_router)
 app.include_router(api_exports_router)
 app.include_router(api_jobs_router)
+app.include_router(api_projects_router)
 app.include_router(api_records_router)
 
 

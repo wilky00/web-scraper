@@ -71,6 +71,17 @@
         </div>
         {% endif %}
 
+        <!-- API Access -->
+        <div class="mt-10">
+            <h2 class="text-base font-semibold text-gray-900 dark:text-gray-100 mb-1">API Access</h2>
+            <p class="text-sm text-gray-500 dark:text-gray-400 mb-4">
+                Use a token to pull records from external systems. Grants <code class="text-xs font-mono">records:read</code> and <code class="text-xs font-mono">records:write</code> scopes. One token per account.
+            </p>
+            <div class="rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 p-6 shadow-sm">
+                {% include "settings/_token_panel.html" %}
+            </div>
+        </div>
+
     </div>
 </div>
 {% endblock %}
