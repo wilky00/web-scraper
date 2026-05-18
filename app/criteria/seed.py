@@ -406,12 +406,7 @@ output:
 async def seed_example_criteria(
     engine: AsyncEngine, created_by: uuid.UUID | None = None
 ) -> None:
-    """Seed 5 example criteria templates if the criteria_groups table is empty. Idempotent."""
-    async with AsyncSession(engine) as db:
-        result = await db.execute(select(CriteriaGroup).limit(1))
-        if result.scalar_one_or_none() is not None:
-            return
-
+    """Seed 5 example criteria templates if they don't already exist by name. Idempotent."""
     count = 0
     for yaml_text in _TEMPLATES:
         config, errors = validate_criteria_yaml(yaml_text)
@@ -421,6 +416,12 @@ async def seed_example_criteria(
 
         snapshot = config.model_dump()
         async with AsyncSession(engine) as db:
+            existing = await db.execute(
+                select(CriteriaGroup).where(CriteriaGroup.name == config.metadata.name)
+            )
+            if existing.scalar_one_or_none() is not None:
+                continue
+
             group = CriteriaGroup(
                 name=config.metadata.name,
                 display_name=config.metadata.display_name,

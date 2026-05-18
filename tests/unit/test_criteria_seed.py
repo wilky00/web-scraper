@@ -11,26 +11,40 @@ from app.criteria.seed import _TEMPLATES, seed_example_criteria
 
 
 @pytest.mark.asyncio
-async def test_seed_skips_when_criteria_exist() -> None:
+async def test_seed_skips_when_all_templates_already_exist() -> None:
+    # Per-name existence check returns a group → all 5 templates already present
     existing_group = MagicMock()
-    scalar_result = MagicMock()
-    scalar_result.scalar_one_or_none.return_value = existing_group
+    existing_result = MagicMock()
+    existing_result.scalar_one_or_none.return_value = existing_group
 
-    db_mock: AsyncMock = AsyncMock()
-    db_mock.__aenter__ = AsyncMock(return_value=db_mock)
-    db_mock.__aexit__ = AsyncMock(return_value=None)
-    db_mock.execute = AsyncMock(return_value=scalar_result)
-    db_mock.add = MagicMock()
-    db_mock.flush = AsyncMock()
-    db_mock.commit = AsyncMock()
+    commit_calls: list[None] = []
+
+    class _AlreadyExistsSession:
+        def __init__(self, engine: object) -> None:
+            self._db: AsyncMock = AsyncMock()
+            self._db.__aenter__ = AsyncMock(return_value=self._db)
+            self._db.__aexit__ = AsyncMock(return_value=None)
+            self._db.execute = AsyncMock(return_value=existing_result)
+            self._db.add = MagicMock()
+            self._db.flush = AsyncMock()
+
+            async def _commit() -> None:
+                commit_calls.append(None)
+
+            self._db.commit = _commit
+
+        async def __aenter__(self) -> AsyncMock:
+            return self._db
+
+        async def __aexit__(self, *_: object) -> None:
+            pass
 
     engine = MagicMock()
-
-    with patch("app.criteria.seed.AsyncSession", return_value=db_mock):
+    with patch("app.criteria.seed.AsyncSession", _AlreadyExistsSession):
         await seed_example_criteria(engine, uuid.uuid4())
 
-    # commit should never be called — seeding was skipped
-    db_mock.commit.assert_not_called()
+    # commit should never be called — every template was already present
+    assert len(commit_calls) == 0
 
 
 @pytest.mark.asyncio
