@@ -2,13 +2,13 @@
 # ABOUTME: All mutating endpoints write an audit log entry. Validate is read-only (no audit needed).
 from __future__ import annotations
 
+import copy
 import secrets
 import uuid
 from pathlib import Path
 
-import yaml
-
 import structlog
+import yaml
 from fastapi import APIRouter, Cookie, Depends, Form, Request
 from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse, Response
 from fastapi.templating import Jinja2Templates
@@ -19,11 +19,11 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.auth.permissions import require_operator
 from app.auth.session import SESSION_COOKIE, get_session
 from app.config.criteria import validate_criteria_yaml
-from app.web.criteria import _ai_enabled
 from app.models.audit import RecordAuditLog
 from app.models.criteria import CriteriaGroup, CriteriaVersion
 from app.models.user import User
 from app.settings import Settings
+from app.web.criteria import _ai_enabled
 
 logger = structlog.get_logger()
 
@@ -399,3 +399,154 @@ async def list_criteria_versions(
         "criteria/version_history.html",
         {"versions": versions, "group_id": group_id},
     )
+
+
+# ---------------------------------------------------------------------------
+# POST /api/criteria/{group_id}/delete  (soft delete)
+# ---------------------------------------------------------------------------
+
+
+@router.post("/api/criteria/{group_id}/delete")
+async def delete_criteria(
+    request: Request,
+    group_id: uuid.UUID,
+    csrf_token: str = Form(...),
+    session_cookie: str | None = Cookie(default=None, alias=SESSION_COOKIE),
+    user: User = Depends(require_operator),
+) -> Response:
+    if not await _check_csrf(request, csrf_token, session_cookie):
+        logger.warning("criteria.delete.csrf_failed", user_id=str(user.id))
+        return JSONResponse({"error": "Invalid form submission."}, status_code=400)
+
+    async with AsyncSession(request.app.state.engine) as db:
+        result = await db.execute(select(CriteriaGroup).where(CriteriaGroup.id == group_id))
+        group = result.scalar_one_or_none()
+
+        if group is None:
+            return JSONResponse({"error": "Not found."}, status_code=404)
+
+        if group.is_template:
+            return JSONResponse(
+                {"error": "Cannot delete a built-in template — clone it instead."},
+                status_code=422,
+            )
+
+        group.is_active = False
+        audit = RecordAuditLog(
+            user_id=user.id,
+            action="criteria_delete",
+            resource_type="criteria_group",
+            resource_id=str(group_id),
+            diff={"group_id": str(group_id), "name": group.name},
+        )
+        db.add(audit)
+        await db.commit()
+
+    logger.info("criteria.deleted", group_id=str(group_id), user_id=str(user.id))
+    return JSONResponse({"ok": True})
+
+
+# ---------------------------------------------------------------------------
+# POST /api/criteria/{group_id}/clone  (copy latest version to new group)
+# ---------------------------------------------------------------------------
+
+
+@router.post("/api/criteria/{group_id}/clone")
+async def clone_criteria(
+    request: Request,
+    group_id: uuid.UUID,
+    csrf_token: str = Form(...),
+    session_cookie: str | None = Cookie(default=None, alias=SESSION_COOKIE),
+    user: User = Depends(require_operator),
+) -> Response:
+    if not await _check_csrf(request, csrf_token, session_cookie):
+        logger.warning("criteria.clone.csrf_failed", user_id=str(user.id))
+        return JSONResponse({"error": "Invalid form submission."}, status_code=400)
+
+    async with AsyncSession(request.app.state.engine) as db:
+        group_result = await db.execute(
+            select(CriteriaGroup).where(CriteriaGroup.id == group_id)
+        )
+        group = group_result.scalar_one_or_none()
+        if group is None:
+            return JSONResponse({"error": "Not found."}, status_code=404)
+
+        version_result = await db.execute(
+            select(CriteriaVersion)
+            .where(CriteriaVersion.group_id == group_id)
+            .order_by(CriteriaVersion.version.desc())
+            .limit(1)
+        )
+        latest = version_result.scalar_one_or_none()
+
+    if latest is None:
+        return JSONResponse({"error": "No version to clone."}, status_code=404)
+
+    base_name = group.name + "-copy"
+    base_display = group.display_name + " (Copy)"
+    source_desc = group.description
+    source_tags = list(group.tags or [])
+
+    new_group_id: uuid.UUID | None = None
+    for attempt in range(5):
+        candidate_name = base_name if attempt == 0 else f"{base_name}-{attempt + 1}"
+        snapshot = copy.deepcopy(latest.config_snapshot)
+        if "metadata" in snapshot and isinstance(snapshot["metadata"], dict):
+            snapshot["metadata"]["name"] = candidate_name
+
+        # Pre-generate the UUID so it's available without relying on flush
+        candidate_id = uuid.uuid4()
+        try:
+            async with AsyncSession(request.app.state.engine) as db2:
+                new_group = CriteriaGroup(
+                    id=candidate_id,
+                    name=candidate_name,
+                    display_name=base_display,
+                    description=source_desc,
+                    tags=source_tags,
+                    is_active=True,
+                    is_template=False,
+                )
+                db2.add(new_group)
+
+                new_version = CriteriaVersion(
+                    group_id=candidate_id,
+                    version=1,
+                    config_snapshot=snapshot,
+                    is_active=True,
+                    created_by=user.id,
+                )
+                db2.add(new_version)
+
+                audit = RecordAuditLog(
+                    user_id=user.id,
+                    action="criteria_clone",
+                    resource_type="criteria_group",
+                    resource_id=str(candidate_id),
+                    diff={"source_group_id": str(group_id), "new_name": candidate_name},
+                )
+                db2.add(audit)
+                await db2.commit()
+            new_group_id = candidate_id
+            break
+        except IntegrityError:
+            continue
+
+    if new_group_id is None:
+        return JSONResponse(
+            {
+                "error": (
+                    "Could not create a unique name for the clone. "
+                    "Try renaming the original first."
+                )
+            },
+            status_code=409,
+        )
+
+    logger.info(
+        "criteria.cloned",
+        source_id=str(group_id),
+        new_id=str(new_group_id),
+        user_id=str(user.id),
+    )
+    return Response(status_code=200, headers={"HX-Redirect": f"/criteria/{new_group_id}"})

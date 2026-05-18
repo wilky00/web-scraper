@@ -635,3 +635,201 @@ async def test_get_criteria_yaml_returns_404_when_not_found(
         _clear_state()
 
     assert resp.status_code == 404
+
+
+# ---------------------------------------------------------------------------
+# POST /api/criteria/{group_id}/delete
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_delete_criteria_soft_deletes(
+    mock_user: MagicMock,
+    mock_redis_criteria: AsyncMock,
+    signed_session: str,
+    mock_group: MagicMock,
+) -> None:
+    mock_group.is_template = False
+    _set_state(mock_redis_criteria)
+    app.dependency_overrides[require_operator] = lambda: mock_user
+    db_mock = _make_criteria_db_mock(group=mock_group)
+
+    try:
+        with patch("app.api.criteria.AsyncSession", return_value=db_mock):
+            async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as c:
+                resp = await c.post(
+                    f"/api/criteria/{mock_group.id}/delete",
+                    data={"csrf_token": _SESSION_CSRF},
+                    cookies={SESSION_COOKIE: signed_session},
+                )
+    finally:
+        app.dependency_overrides.clear()
+        _clear_state()
+
+    assert resp.status_code == 200
+    assert resp.json().get("ok") is True
+    assert mock_group.is_active is False
+
+
+@pytest.mark.asyncio
+async def test_delete_template_blocked(
+    mock_user: MagicMock,
+    mock_redis_criteria: AsyncMock,
+    signed_session: str,
+    mock_group: MagicMock,
+) -> None:
+    mock_group.is_template = True
+    _set_state(mock_redis_criteria)
+    app.dependency_overrides[require_operator] = lambda: mock_user
+    db_mock = _make_criteria_db_mock(group=mock_group)
+
+    try:
+        with patch("app.api.criteria.AsyncSession", return_value=db_mock):
+            async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as c:
+                resp = await c.post(
+                    f"/api/criteria/{mock_group.id}/delete",
+                    data={"csrf_token": _SESSION_CSRF},
+                    cookies={SESSION_COOKIE: signed_session},
+                )
+    finally:
+        app.dependency_overrides.clear()
+        _clear_state()
+
+    assert resp.status_code == 422
+    assert "template" in resp.json()["error"].lower()
+
+
+# ---------------------------------------------------------------------------
+# POST /api/criteria/{group_id}/clone
+# ---------------------------------------------------------------------------
+
+
+def _make_clone_db_mock(
+    group: MagicMock,
+    version: MagicMock,
+    commit_side_effect: list[Exception | None] | None = None,
+) -> AsyncMock:
+    """Mock that handles load (group + version) then clone insert."""
+    group_result = MagicMock()
+    group_result.scalar_one_or_none.return_value = group
+
+    version_result = MagicMock()
+    version_result.scalar_one_or_none.return_value = version
+
+    call_n = {"n": 0}
+
+    async def _execute(*args: object, **kw: object) -> MagicMock:
+        call_n["n"] += 1
+        if call_n["n"] == 1:
+            return group_result
+        return version_result
+
+    db_mock: AsyncMock = AsyncMock()
+    db_mock.__aenter__ = AsyncMock(return_value=db_mock)
+    db_mock.__aexit__ = AsyncMock(return_value=None)
+    db_mock.execute = _execute
+    db_mock.add = MagicMock()
+    db_mock.flush = AsyncMock()
+
+    if commit_side_effect:
+        commit_call_n = {"n": 0}
+        effects = commit_side_effect
+
+        async def _commit() -> None:
+            i = commit_call_n["n"]
+            commit_call_n["n"] += 1
+            exc = effects[i] if i < len(effects) else None
+            if exc is not None:
+                raise exc
+
+        db_mock.commit = _commit
+    else:
+        db_mock.commit = AsyncMock()
+
+    return db_mock
+
+
+@pytest.fixture
+def mock_version() -> MagicMock:
+    v = MagicMock(spec=CriteriaVersion)
+    v.id = uuid.uuid4()
+    v.version = 1
+    v.config_snapshot = {
+        "metadata": {"name": "test-criteria", "display_name": "Test Criteria", "tags": []},
+        "source": {"connector": "fixture", "max_results": 10},
+    }
+    return v
+
+
+@pytest.mark.asyncio
+async def test_clone_criteria_creates_copy(
+    mock_user: MagicMock,
+    mock_redis_criteria: AsyncMock,
+    signed_session: str,
+    mock_group: MagicMock,
+    mock_version: MagicMock,
+) -> None:
+    mock_group.is_template = False
+    _set_state(mock_redis_criteria)
+    app.dependency_overrides[require_operator] = lambda: mock_user
+    db_mock = _make_clone_db_mock(mock_group, mock_version)
+
+    try:
+        with patch("app.api.criteria.AsyncSession", return_value=db_mock):
+            async with AsyncClient(
+                transport=ASGITransport(app=app),
+                base_url="http://test",
+                follow_redirects=False,
+            ) as c:
+                resp = await c.post(
+                    f"/api/criteria/{mock_group.id}/clone",
+                    data={"csrf_token": _SESSION_CSRF},
+                    cookies={SESSION_COOKIE: signed_session},
+                )
+    finally:
+        app.dependency_overrides.clear()
+        _clear_state()
+
+    assert resp.status_code == 200
+    assert "HX-Redirect" in resp.headers
+    assert "/criteria/" in resp.headers["HX-Redirect"]
+
+
+@pytest.mark.asyncio
+async def test_clone_name_collision_increments_suffix(
+    mock_user: MagicMock,
+    mock_redis_criteria: AsyncMock,
+    signed_session: str,
+    mock_group: MagicMock,
+    mock_version: MagicMock,
+) -> None:
+    from sqlalchemy.exc import IntegrityError as SAIntegrityError
+
+    mock_group.is_template = False
+    _set_state(mock_redis_criteria)
+    app.dependency_overrides[require_operator] = lambda: mock_user
+    # First commit raises IntegrityError (name collision), second succeeds
+    db_mock = _make_clone_db_mock(
+        mock_group,
+        mock_version,
+        commit_side_effect=[SAIntegrityError("mock", {}, Exception()), None],
+    )
+
+    try:
+        with patch("app.api.criteria.AsyncSession", return_value=db_mock):
+            async with AsyncClient(
+                transport=ASGITransport(app=app),
+                base_url="http://test",
+                follow_redirects=False,
+            ) as c:
+                resp = await c.post(
+                    f"/api/criteria/{mock_group.id}/clone",
+                    data={"csrf_token": _SESSION_CSRF},
+                    cookies={SESSION_COOKIE: signed_session},
+                )
+    finally:
+        app.dependency_overrides.clear()
+        _clear_state()
+
+    assert resp.status_code == 200
+    assert "HX-Redirect" in resp.headers

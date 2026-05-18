@@ -78,6 +78,7 @@ async def criteria_list(
             "description": g.description,
             "tags": g.tags,
             "is_active": g.is_active,
+            "is_template": g.is_template,
             "version_count": version_counts.get(str(g.id), 0),
             "created_at": (
                 g.created_at.isoformat() if hasattr(g, "created_at") and g.created_at else ""
