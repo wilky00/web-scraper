@@ -16,7 +16,7 @@
             if (this.modelsLoaded && !force) return;
             this.loadingModels = true;
             try {
-                const r = await fetch('/api/ai/models');
+                const r = await fetch('/api/ai/models' + (force ? '?force=true' : ''));
                 const d = await r.json();
                 this.availableModels = d.models || [];
                 this.selectedModel = d.default || '';

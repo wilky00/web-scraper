@@ -16,6 +16,17 @@ class AIClientError(RuntimeError):
     """Raised when the AI API returns an error or is unreachable."""
 
 
+async def fetch_models(base_url: str, api_key: str) -> list[str]:
+    """Fetch available models from an OpenAI-compatible /models endpoint."""
+    url = base_url.rstrip("/") + "/models"
+    headers = {"Authorization": f"Bearer {api_key}"}
+    async with httpx.AsyncClient(timeout=10.0) as client:
+        response = await client.get(url, headers=headers)
+    response.raise_for_status()
+    data = response.json()
+    return sorted(item["id"] for item in data.get("data", []) if item.get("id"))
+
+
 async def chat_complete(
     messages: list[dict[str, str]],
     ai_config: AIConfig,

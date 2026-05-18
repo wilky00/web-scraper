@@ -22,13 +22,13 @@ from app.api.criteria import router as api_criteria_router
 from app.api.exports import router as api_exports_router
 from app.api.jobs import router as api_jobs_router
 from app.api.records import router as api_records_router
-from app.models.user import User
 from app.auth.oidc import load_oidc_discovery
 from app.auth.oidc import sso_enabled as _oidc_sso_enabled
 from app.auth.permissions import NotAuthenticatedException
 from app.auth.seed import seed_operator
-from app.criteria.seed import seed_example_criteria
 from app.config.loader import ConfigLoadError, load_all_configs
+from app.criteria.seed import seed_example_criteria
+from app.models.user import User
 from app.settings import Settings
 from app.web.audit import router as web_audit_router
 from app.web.auth import router as web_auth_router
@@ -74,6 +74,27 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     async with AsyncSession(app.state.engine) as _db:
         _seed_user = (await _db.execute(select(User).limit(1))).scalar_one_or_none()
     await seed_example_criteria(app.state.engine, _seed_user.id if _seed_user else None)
+
+    if app.state.config.ai and not app.state.config.ai.models:
+        import json as _json
+
+        from app.ai.client import fetch_models as _fetch_models
+        from app.api.ai import _AI_MODELS_CACHE_KEY, _AI_MODELS_CACHE_TTL
+
+        try:
+            _ai_models = await _fetch_models(
+                app.state.config.ai.base_url, settings.ai_api_key
+            )
+            if _ai_models:
+                await app.state.redis.set(
+                    _AI_MODELS_CACHE_KEY, _json.dumps(_ai_models), ex=_AI_MODELS_CACHE_TTL
+                )
+                logger.info("startup.ai_models_cached", count=len(_ai_models))
+        except Exception:
+            logger.warning(
+                "startup.ai_models_fetch_failed",
+                hint="models will be fetched on first request",
+            )
 
     app.state.oidc_discovery = None
     if _oidc_sso_enabled(settings, app.state.config.app):

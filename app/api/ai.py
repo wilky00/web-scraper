@@ -5,13 +5,12 @@ from __future__ import annotations
 import json
 import secrets
 
-import httpx
 import structlog
-from fastapi import APIRouter, Cookie, Depends, Form, Request
+from fastapi import APIRouter, Cookie, Depends, Form, Query, Request
 from fastapi.responses import JSONResponse
 
 from app.ai.chat import build_messages, extract_yaml_block
-from app.ai.client import AIClientError, chat_complete
+from app.ai.client import AIClientError, chat_complete, fetch_models
 from app.ai.config import AIConfig
 from app.ai.skills import load_skills
 from app.auth.permissions import require_operator
@@ -25,6 +24,8 @@ router = APIRouter()
 
 _RATE_LIMIT_MAX = 20
 _RATE_LIMIT_WINDOW = 300  # 5 minutes
+_AI_MODELS_CACHE_KEY = "ai:models"
+_AI_MODELS_CACHE_TTL = 86400  # 24 hours
 
 
 async def _check_csrf(
@@ -57,28 +58,40 @@ async def _check_rate_limit(redis: object, user_id: str) -> bool:
 @router.get("/api/ai/models")
 async def ai_models(
     request: Request,
+    force: bool = Query(False),
     user: User = Depends(require_operator),
 ) -> JSONResponse:
+    import json
+
+    import redis.asyncio as aioredis
+
     ai_config: AIConfig | None = getattr(request.app.state.config, "ai", None)
     if ai_config is None:
         return JSONResponse({"error": "AI Assist is not configured"}, status_code=503)
 
-    # If models are explicitly configured, return them directly — skip provider fetch.
+    # Whitelist in ai_base.yaml overrides everything — no cache involved.
     if ai_config.models:
         default = ai_config.model if ai_config.model in ai_config.models else ai_config.models[0]
         return JSONResponse({"models": ai_config.models, "default": default})
 
     settings: Settings = request.app.state.settings
-    url = ai_config.base_url.rstrip("/") + "/models"
-    headers = {"Authorization": f"Bearer {settings.ai_api_key}"}
+    r: aioredis.Redis = request.app.state.redis
 
+    # Return cached list unless the caller is forcing a refresh.
+    if not force:
+        cached = await r.get(_AI_MODELS_CACHE_KEY)
+        if cached:
+            try:
+                return JSONResponse({"models": json.loads(cached), "default": ai_config.model})
+            except (ValueError, TypeError):
+                pass  # corrupted cache — fall through to re-fetch
+
+    # Fetch from provider (LiteLLM / OpenRouter / etc.) and update cache.
     models: list[str] = []
     try:
-        async with httpx.AsyncClient(timeout=10.0) as http:
-            response = await http.get(url, headers=headers)
-        response.raise_for_status()
-        data = response.json()
-        models = sorted(item["id"] for item in data.get("data", []) if item.get("id"))
+        models = await fetch_models(ai_config.base_url, settings.ai_api_key)
+        if models:
+            await r.set(_AI_MODELS_CACHE_KEY, json.dumps(models), ex=_AI_MODELS_CACHE_TTL)
     except Exception:
         pass
 
