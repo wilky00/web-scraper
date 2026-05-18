@@ -362,6 +362,30 @@ var _projectsData = {{ projects | tojson if projects is defined else '[]' }};
                                  if (!q) return true;
                                  return ((t.display_name || '') + ' ' + (t.description || '') + ' ' + (t.tags || []).join(' ')).toLowerCase().indexOf(q) !== -1;
                              });
+                         },
+                         init() {
+                             this.$watch('projectFilter', (val) => {
+                                 const proj = this.projects.find(p => p.id === val);
+                                 const name = proj ? proj.name : '';
+                                 const ta = document.getElementById('yaml_text');
+                                 if (!ta) return;
+                                 let lines = ta.value.split('\n');
+                                 const existingIdx = lines.findIndex(l => /^  project:/.test(l));
+                                 if (existingIdx >= 0) lines.splice(existingIdx, 1);
+                                 if (name) {
+                                     const metaIdx = lines.findIndex(l => /^metadata:/.test(l));
+                                     if (metaIdx >= 0) {
+                                         let lastMetaLine = metaIdx;
+                                         for (let i = metaIdx + 1; i < lines.length; i++) {
+                                             if (/^  \S/.test(lines[i])) { lastMetaLine = i; }
+                                             else if (/^\S/.test(lines[i]) && lines[i].trim() !== '') { break; }
+                                         }
+                                         lines.splice(lastMetaLine + 1, 0, '  project: ' + name);
+                                     }
+                                 }
+                                 ta.value = lines.join('\n');
+                                 ta.dispatchEvent(new Event('input'));
+                             });
                          }
                      }">
                     <div class="px-4 py-3 border-b border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900/50 cursor-pointer select-none flex items-center justify-between"
