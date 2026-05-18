@@ -359,3 +359,41 @@ class TestConnectorRegistryGooglePlaces:
         }
         registry = ConnectorRegistry(config)
         assert set(registry.available()) == {"fixture", "google_places"}
+
+
+# ---------------------------------------------------------------------------
+# extract_fields
+# ---------------------------------------------------------------------------
+
+
+class TestExtractFields:
+    def _connector(self) -> GooglePlacesConnector:
+        return GooglePlacesConnector({"enabled": True})
+
+    def test_full_record(self) -> None:
+        raw = {
+            "id": "ChIJabc123",
+            "displayName": {"text": "Nashville Cuts", "languageCode": "en"},
+            "formattedAddress": "123 Broadway, Nashville, TN 37201, USA",
+            "websiteUri": "https://nashvillecuts.com",
+            "nationalPhoneNumber": "(615) 555-1234",
+        }
+        fields = self._connector().extract_fields(raw)
+        assert fields["name"] == "Nashville Cuts"
+        assert fields["website"] == "https://nashvillecuts.com"
+        assert fields["phone"] == "(615) 555-1234"
+        assert fields["address"] == "123 Broadway, Nashville, TN 37201, USA"
+        assert fields["email"] is None
+
+    def test_missing_optional_fields(self) -> None:
+        raw = {"displayName": {"text": "Bare Minimum Shop"}}
+        fields = self._connector().extract_fields(raw)
+        assert fields["name"] == "Bare Minimum Shop"
+        assert fields["website"] is None
+        assert fields["phone"] is None
+        assert fields["address"] is None
+
+    def test_empty_raw(self) -> None:
+        fields = self._connector().extract_fields({})
+        assert fields["name"] is None
+        assert fields["website"] is None

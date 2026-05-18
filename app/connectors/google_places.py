@@ -134,6 +134,17 @@ class GooglePlacesConnector(ConnectorBase):
             if owns_client:
                 await client.aclose()
 
+    def extract_fields(self, raw_data: dict[str, Any]) -> dict[str, str | None]:
+        display_name = raw_data.get("displayName") or {}
+        name = display_name.get("text") if isinstance(display_name, dict) else None
+        return {
+            "name": name or None,
+            "website": raw_data.get("websiteUri") or None,
+            "phone": raw_data.get("nationalPhoneNumber") or None,
+            "address": raw_data.get("formattedAddress") or None,
+            "email": None,  # Places API does not expose email
+        }
+
     def _resolve_query_params(self, job_config: dict[str, Any]) -> tuple[str, str | None, int]:
         """Extract query, location, and max_results from job_config.
 
