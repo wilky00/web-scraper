@@ -114,7 +114,7 @@ async def create_project(
     return JSONResponse(
         {"data": _project_to_dict(project), "errors": []},
         status_code=201,
-        headers={"HX-Redirect": f"/projects/{project_id}"},
+        headers={"HX-Redirect": "/projects"},
     )
 
 

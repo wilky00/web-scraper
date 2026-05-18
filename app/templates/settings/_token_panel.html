@@ -7,14 +7,16 @@
         plaintext: '',
         copied: false,
         loading: false,
+        scope: 'readwrite',
         async generate() {
             this.loading = true;
             this.plaintext = '';
             this.copied = false;
+            const scopes = this.scope === 'read' ? ['records:read'] : ['records:read', 'records:write'];
             const resp = await fetch('/api/auth/token', {
                 method: 'POST',
                 headers: {'Content-Type': 'application/json', 'X-CSRF-Token': '{{ csrf_token }}'},
-                body: JSON.stringify({scopes: ['records:read', 'records:write']})
+                body: JSON.stringify({scopes: scopes})
             });
             this.loading = false;
             if (resp.ok) {
@@ -69,6 +71,20 @@
             </div>
         </div>
     </template>
+
+    <div class="mb-4">
+        <p class="text-xs font-medium text-gray-700 dark:text-gray-300 mb-1.5">Scope</p>
+        <div class="flex gap-6">
+            <label class="inline-flex items-center gap-1.5 cursor-pointer">
+                <input type="radio" x-model="scope" value="readwrite" class="text-blue-600 focus:ring-blue-500">
+                <code class="text-xs text-gray-600 dark:text-gray-400">records:read + records:write</code>
+            </label>
+            <label class="inline-flex items-center gap-1.5 cursor-pointer">
+                <input type="radio" x-model="scope" value="read" class="text-blue-600 focus:ring-blue-500">
+                <span class="text-xs text-gray-600 dark:text-gray-400"><code>records:read</code> only</span>
+            </label>
+        </div>
+    </div>
 
     <div class="flex items-center gap-3">
         <button

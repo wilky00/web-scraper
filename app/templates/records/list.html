@@ -79,6 +79,16 @@
         <!-- Filter form -->
         <form method="get" action="/records" class="mb-6 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 p-4 shadow-sm">
             <div class="flex flex-wrap gap-3">
+                <select
+                    name="project_id"
+                    aria-label="Filter by project"
+                    class="rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 px-3 py-1.5 text-sm text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                >
+                    <option value="" {% if not filters.project_id %}selected{% endif %}>All Projects</option>
+                    {% for p in projects %}
+                    <option value="{{ p.id }}" {% if filters.project_id == p.id %}selected{% endif %}>{{ p.name }}</option>
+                    {% endfor %}
+                </select>
                 <input
                     type="text" name="q" value="{{ filters.q }}"
                     placeholder="Search by name…"
@@ -112,16 +122,6 @@
                     type="date" name="date_to" value="{{ filters.date_to }}"
                     class="rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 px-3 py-1.5 text-sm text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500"
                 >
-                <select
-                    name="project_id"
-                    aria-label="Filter by project"
-                    class="rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 px-3 py-1.5 text-sm text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                >
-                    <option value="" {% if not filters.project_id %}selected{% endif %}>All Projects</option>
-                    {% for p in projects %}
-                    <option value="{{ p.id }}" {% if filters.project_id == p.id %}selected{% endif %}>{{ p.name }}</option>
-                    {% endfor %}
-                </select>
                 <!-- Preserve current sort state across filter submits -->
                 <input type="hidden" name="sort" value="{{ filters.sort }}">
                 <input type="hidden" name="order" value="{{ filters.order }}">

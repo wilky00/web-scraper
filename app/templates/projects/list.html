@@ -129,7 +129,7 @@
                 </thead>
                 <tbody class="divide-y divide-gray-100 dark:divide-gray-700/50">
                     {% for project in projects %}
-                    <tr class="hover:bg-gray-50 dark:hover:bg-gray-700/30 transition-colors" x-data="{ menuOpen: false }">
+                    <tr class="hover:bg-gray-50 dark:hover:bg-gray-700/30 transition-colors" x-data="{ menuOpen: false, menuTop: 0, menuRight: 0 }">
                         <td class="px-6 py-4">
                             <a href="/projects/{{ project.id }}" class="font-medium text-blue-600 dark:text-blue-400 hover:underline">{{ project.name }}</a>
                             {% if project.is_default %}
@@ -162,7 +162,7 @@
                         <td class="px-6 py-4 text-gray-700 dark:text-gray-300">{{ project.job_count }}</td>
                         <td class="px-6 py-4 text-right relative">
                             <button
-                                @click.stop="menuOpen = !menuOpen"
+                                @click.stop="const r = $event.currentTarget.getBoundingClientRect(); menuTop = r.bottom + 4; menuRight = window.innerWidth - r.right; menuOpen = !menuOpen"
                                 type="button"
                                 class="rounded p-1 text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500"
                                 aria-label="Project actions for {{ project.name }}"
@@ -178,7 +178,8 @@
                                 x-transition:enter="transition ease-out duration-100"
                                 x-transition:enter-start="opacity-0 scale-95"
                                 x-transition:enter-end="opacity-100 scale-100"
-                                class="absolute right-6 top-10 z-20 w-40 rounded-md border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-800 shadow-lg py-1"
+                                :style="`position: fixed; top: ${menuTop}px; right: ${menuRight}px; z-index: 50;`"
+                                class="w-40 rounded-md border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-800 shadow-lg py-1"
                                 role="menu"
                             >
                                 <button

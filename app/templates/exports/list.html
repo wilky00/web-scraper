@@ -15,15 +15,6 @@
             <h2 class="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-4">New Export</h2>
             <form hx-post="/api/exports" class="flex flex-wrap items-center gap-3">
                 <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-                <label for="export-format" class="text-sm text-gray-600 dark:text-gray-400">Format</label>
-                <select
-                    id="export-format"
-                    name="format"
-                    class="rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 px-3 py-1.5 text-sm text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                >
-                    <option value="csv">CSV</option>
-                    <option value="xlsx">XLSX</option>
-                </select>
                 <label for="export-project" class="text-sm text-gray-600 dark:text-gray-400">Project</label>
                 <select
                     id="export-project"
@@ -41,6 +32,15 @@
                         {% endif %}
                     {% endfor %}
                     <option value="ALL">All Projects</option>
+                </select>
+                <label for="export-format" class="text-sm text-gray-600 dark:text-gray-400">Format</label>
+                <select
+                    id="export-format"
+                    name="format"
+                    class="rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 px-3 py-1.5 text-sm text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                >
+                    <option value="csv">CSV</option>
+                    <option value="xlsx">XLSX</option>
                 </select>
                 <button
                     type="submit"
@@ -88,17 +88,6 @@
             </table>
         </div>
         {% endif %}
-
-        <!-- API Access -->
-        <div class="mt-10">
-            <h2 class="text-base font-semibold text-gray-900 dark:text-gray-100 mb-1">API Access</h2>
-            <p class="text-sm text-gray-500 dark:text-gray-400 mb-4">
-                Use a token to pull records from external systems. Grants <code class="text-xs font-mono">records:read</code> and <code class="text-xs font-mono">records:write</code> scopes. One token per account.
-            </p>
-            <div class="rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 p-6 shadow-sm">
-                {% include "settings/_token_panel.html" %}
-            </div>
-        </div>
 
     </div>
 </div>

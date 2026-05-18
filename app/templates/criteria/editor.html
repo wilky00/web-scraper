@@ -116,6 +116,7 @@ async function loadVersion(groupId, versionId) {
     }
 }
 var _templateData = {{ templates | tojson if templates is defined else '[]' }};
+var _projectsData = {{ projects | tojson if projects is defined else '[]' }};
 </script>
 {% endblock %}
 {% block content %}
@@ -349,11 +350,16 @@ var _templateData = {{ templates | tojson if templates is defined else '[]' }};
                      x-data="{
                          open: {% if not group %}true{% else %}false{% endif %},
                          search: '',
+                         projectFilter: '',
                          templates: (typeof _templateData !== 'undefined' ? _templateData : []),
+                         projects: (typeof _projectsData !== 'undefined' ? _projectsData : []),
                          filtered() {
-                             if (!this.search) return this.templates;
+                             var pf = this.projectFilter;
                              var q = this.search.toLowerCase();
                              return this.templates.filter(function(t) {
+                                 var projectMatch = !pf || t.project_id === '' || t.project_id === pf;
+                                 if (!projectMatch) return false;
+                                 if (!q) return true;
                                  return ((t.display_name || '') + ' ' + (t.description || '') + ' ' + (t.tags || []).join(' ')).toLowerCase().indexOf(q) !== -1;
                              });
                          }
@@ -373,6 +379,18 @@ var _templateData = {{ templates | tojson if templates is defined else '[]' }};
                     </div>
                     <div x-show="open" x-transition>
                         {% if templates %}
+                        <div class="px-3 py-2 border-b border-gray-100 dark:border-gray-700/50">
+                            <select
+                                x-model="projectFilter"
+                                aria-label="Filter templates by project"
+                                class="w-full rounded border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900 px-2 py-1 text-xs text-gray-700 dark:text-gray-300 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                            >
+                                <option value="">All Projects</option>
+                                <template x-for="p in projects" :key="p.id">
+                                    <option :value="p.id" x-text="p.name"></option>
+                                </template>
+                            </select>
+                        </div>
                         <div class="px-3 py-2 border-b border-gray-100 dark:border-gray-700/50">
                             <input type="text" x-model="search" placeholder="Search templates…"
                                    class="w-full rounded border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900 px-2 py-1 text-xs text-gray-700 dark:text-gray-300 placeholder-gray-400 focus:outline-none focus:ring-1 focus:ring-blue-500"

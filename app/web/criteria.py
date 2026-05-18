@@ -134,9 +134,13 @@ async def criteria_new(
                 "display_name": g.display_name,
                 "description": g.description or "",
                 "tags": g.tags or [],
+                "project_id": str(g.project_id) if g.project_id else "",
             }
             for g in t_result.scalars().all()
         ]
+
+        projects_result = await db.execute(select(Project).order_by(Project.name))
+        projects = [{"id": str(p.id), "name": p.name} for p in projects_result.scalars().all()]
 
     return templates.TemplateResponse(
         request,
@@ -150,6 +154,7 @@ async def criteria_new(
             "user": user,
             "ai_enabled": _ai_enabled(request),
             "templates": template_list,
+            "projects": projects,
         },
     )
 
@@ -189,9 +194,13 @@ async def criteria_editor(
                 "display_name": g.display_name,
                 "description": g.description or "",
                 "tags": g.tags or [],
+                "project_id": str(g.project_id) if g.project_id else "",
             }
             for g in t_result.scalars().all()
         ]
+
+        projects_result = await db.execute(select(Project).order_by(Project.name))
+        projects = [{"id": str(p.id), "name": p.name} for p in projects_result.scalars().all()]
 
     latest = versions[0] if versions else None
     yaml_text = (
@@ -217,6 +226,7 @@ async def criteria_editor(
             "user": user,
             "ai_enabled": _ai_enabled(request),
             "templates": template_list,
+            "projects": projects,
         },
     )
 
