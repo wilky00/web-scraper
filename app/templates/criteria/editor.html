@@ -18,6 +18,21 @@ async function loadCriteriaTemplate(groupId) {
         console.error('loadCriteriaTemplate failed', e);
     }
 }
+async function loadVersion(groupId, versionId) {
+    try {
+        const resp = await fetch('/api/criteria/' + groupId + '/versions/' + versionId + '/yaml');
+        if (!resp.ok) return;
+        const data = await resp.json();
+        if (!data.yaml) return;
+        const ta = document.getElementById('yaml_text');
+        ta.value = data.yaml;
+        ta.dispatchEvent(new Event('input'));
+        ta.focus();
+        ta.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    } catch (e) {
+        console.error('loadVersion failed', e);
+    }
+}
 </script>
 {% endblock %}
 {% block content %}
@@ -57,7 +72,7 @@ async function loadCriteriaTemplate(groupId) {
         <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
 
             <!-- Main editor column -->
-            <div class="lg:col-span-2 space-y-4">
+            <div class="lg:col-span-2 space-y-4" x-data="{ showSaveAs: false, newName: '' }">
                 <form
                     method="post"
                     {% if group %}
@@ -135,8 +150,61 @@ async function loadCriteriaTemplate(groupId) {
                         >
                             Cancel
                         </a>
+                        {% if group %}
+                        <button
+                            type="button"
+                            @click="showSaveAs = true; newName = ''"
+                            class="ml-auto text-sm text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200"
+                            title="Save the current YAML as a new independent criteria entry"
+                        >
+                            Save As
+                        </button>
+                        {% endif %}
                     </div>
                 </form>
+                {% if group %}
+                <div x-show="showSaveAs"
+                     x-transition
+                     style="display: none;"
+                     class="fixed inset-0 z-50 flex items-center justify-center bg-black/50"
+                     @keydown.escape.window="showSaveAs = false">
+                    <div class="w-full max-w-md rounded-lg bg-white dark:bg-gray-800 shadow-xl p-6" @click.stop>
+                        <h3 class="text-base font-semibold text-gray-900 dark:text-gray-100 mb-4">Save As New Criteria</h3>
+                        <form method="post"
+                              action="/api/criteria/{{ group.id }}/save-as"
+                              @submit="$el.querySelector('[name=yaml_text]').value = document.getElementById('yaml_text').value">
+                            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                            <input type="hidden" name="yaml_text" value="">
+                            <div class="mb-4">
+                                <label for="save-as-name"
+                                       class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">
+                                    New display name
+                                </label>
+                                <input type="text"
+                                       id="save-as-name"
+                                       name="new_display_name"
+                                       x-model="newName"
+                                       required
+                                       autocomplete="off"
+                                       placeholder="e.g. My Custom Criteria"
+                                       class="block w-full rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 px-3 py-2 text-sm text-gray-900 dark:text-gray-100 placeholder-gray-400 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500">
+                            </div>
+                            <div class="flex items-center gap-3 justify-end">
+                                <button type="button"
+                                        @click="showSaveAs = false"
+                                        class="text-sm text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200">
+                                    Cancel
+                                </button>
+                                <button type="submit"
+                                        :disabled="!newName.trim()"
+                                        class="inline-flex items-center gap-2 rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-blue-500 disabled:opacity-50 disabled:cursor-not-allowed focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 dark:focus:ring-offset-gray-800">
+                                    Save as new criteria
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+                {% endif %}
             </div>
 
             <!-- Version history sidebar -->
@@ -165,6 +233,10 @@ async function loadCriteriaTemplate(groupId) {
                                         {{ v.created_at.strftime('%Y-%m-%d %H:%M') if v.created_at else '—' }}
                                     </p>
                                 </div>
+                                <button type="button"
+                                        onclick="loadVersion('{{ group.id }}', '{{ v.id }}')"
+                                        class="flex-shrink-0 text-xs text-blue-600 dark:text-blue-400 hover:underline"
+                                        aria-label="Load version {{ v.version }}">Load</button>
                             </div>
                         </li>
                         {% endfor %}

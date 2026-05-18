@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import copy
+import re
 import secrets
 import uuid
 from pathlib import Path
@@ -464,9 +465,7 @@ async def clone_criteria(
         return JSONResponse({"error": "Invalid form submission."}, status_code=400)
 
     async with AsyncSession(request.app.state.engine) as db:
-        group_result = await db.execute(
-            select(CriteriaGroup).where(CriteriaGroup.id == group_id)
-        )
+        group_result = await db.execute(select(CriteriaGroup).where(CriteriaGroup.id == group_id))
         group = group_result.scalar_one_or_none()
         if group is None:
             return JSONResponse({"error": "Not found."}, status_code=404)
@@ -536,8 +535,7 @@ async def clone_criteria(
         return JSONResponse(
             {
                 "error": (
-                    "Could not create a unique name for the clone. "
-                    "Try renaming the original first."
+                    "Could not create a unique name for the clone. Try renaming the original first."
                 )
             },
             status_code=409,
@@ -550,3 +548,123 @@ async def clone_criteria(
         user_id=str(user.id),
     )
     return Response(status_code=200, headers={"HX-Redirect": f"/criteria/{new_group_id}"})
+
+
+# ---------------------------------------------------------------------------
+# GET /api/criteria/{group_id}/versions/{version_id}/yaml
+# ---------------------------------------------------------------------------
+
+
+@router.get("/api/criteria/{group_id}/versions/{version_id}/yaml")
+async def get_version_yaml(
+    request: Request,
+    group_id: uuid.UUID,
+    version_id: uuid.UUID,
+    user: User = Depends(require_operator),
+) -> Response:
+    async with AsyncSession(request.app.state.engine) as db:
+        result = await db.execute(
+            select(CriteriaVersion).where(
+                CriteriaVersion.id == version_id,
+                CriteriaVersion.group_id == group_id,
+            )
+        )
+        version = result.scalar_one_or_none()
+    if version is None:
+        return JSONResponse({"error": "Not found"}, status_code=404)
+    yaml_text = yaml.dump(
+        version.config_snapshot,
+        default_flow_style=False,
+        allow_unicode=True,
+        sort_keys=False,
+    )
+    return JSONResponse({"yaml": yaml_text})
+
+
+# ---------------------------------------------------------------------------
+# POST /api/criteria/{group_id}/save-as
+# ---------------------------------------------------------------------------
+
+
+@router.post("/api/criteria/{group_id}/save-as")
+async def save_as_criteria(
+    request: Request,
+    group_id: uuid.UUID,
+    yaml_text: str = Form(...),
+    new_display_name: str = Form(...),
+    csrf_token: str = Form(...),
+    session_cookie: str | None = Cookie(default=None, alias=SESSION_COOKIE),
+    user: User = Depends(require_operator),
+) -> Response:
+    if not await _check_csrf(request, csrf_token, session_cookie):
+        logger.warning("criteria.save_as.csrf_failed", user_id=str(user.id))
+        return JSONResponse({"error": "Invalid form submission."}, status_code=400)
+
+    config, errors = validate_criteria_yaml(yaml_text)
+    if errors or config is None:
+        return _render_editor(
+            request,
+            yaml_text=yaml_text,
+            errors=errors,
+            csrf_token=csrf_token,
+            user=user,
+            ai_enabled=_ai_enabled(request),
+            status_code=422,
+        )
+
+    new_name = re.sub(r"[^a-z0-9]+", "-", new_display_name.strip().lower()).strip("-")
+    display_name = new_display_name.strip()
+    snapshot = config.model_dump()
+    if "metadata" in snapshot and isinstance(snapshot["metadata"], dict):
+        snapshot["metadata"]["name"] = new_name
+        snapshot["metadata"]["display_name"] = display_name
+
+    new_group_id = uuid.uuid4()
+    try:
+        async with AsyncSession(request.app.state.engine) as db:
+            new_group = CriteriaGroup(
+                id=new_group_id,
+                name=new_name,
+                display_name=display_name,
+                description=config.metadata.description,
+                tags=config.metadata.tags,
+                is_active=True,
+                is_template=False,
+            )
+            db.add(new_group)
+            version = CriteriaVersion(
+                group_id=new_group_id,
+                version=1,
+                config_snapshot=snapshot,
+                is_active=True,
+                created_by=user.id,
+            )
+            db.add(version)
+            audit = RecordAuditLog(
+                user_id=user.id,
+                action="criteria_save_as",
+                resource_type="criteria_group",
+                resource_id=str(new_group_id),
+                diff={"source_group_id": str(group_id), "new_name": new_name},
+            )
+            db.add(audit)
+            await db.commit()
+    except IntegrityError:
+        return _render_editor(
+            request,
+            yaml_text=yaml_text,
+            errors=[f"A criteria named '{new_name}' already exists. Use a different name."],
+            csrf_token=csrf_token,
+            user=user,
+            ai_enabled=_ai_enabled(request),
+            status_code=409,
+        )
+
+    logger.info(
+        "criteria.saved_as",
+        new_group_id=str(new_group_id),
+        name=new_name,
+        source_group_id=str(group_id),
+        user_id=str(user.id),
+    )
+    return RedirectResponse(url=f"/criteria/{new_group_id}", status_code=303)

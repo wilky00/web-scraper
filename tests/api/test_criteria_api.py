@@ -795,6 +795,143 @@ async def test_clone_criteria_creates_copy(
     assert "/criteria/" in resp.headers["HX-Redirect"]
 
 
+# ---------------------------------------------------------------------------
+# GET /api/criteria/{group_id}/versions/{version_id}/yaml
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_get_version_yaml_returns_yaml(
+    mock_user: MagicMock, mock_redis_criteria: AsyncMock
+) -> None:
+    _set_state(mock_redis_criteria)
+    app.dependency_overrides[require_operator] = lambda: mock_user
+
+    version_mock = MagicMock(spec=CriteriaVersion)
+    version_mock.config_snapshot = {
+        "metadata": {"name": "test", "display_name": "Test", "description": "", "tags": []},
+        "source": {"connector": "fixture", "max_results": 10, "query_fields": []},
+    }
+
+    scalar_result = MagicMock()
+    scalar_result.scalar_one_or_none.return_value = version_mock
+
+    db_mock: AsyncMock = AsyncMock()
+    db_mock.__aenter__ = AsyncMock(return_value=db_mock)
+    db_mock.__aexit__ = AsyncMock(return_value=None)
+    db_mock.execute = AsyncMock(return_value=scalar_result)
+
+    gid = uuid.uuid4()
+    vid = uuid.uuid4()
+    try:
+        with patch("app.api.criteria.AsyncSession", return_value=db_mock):
+            async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as c:
+                resp = await c.get(f"/api/criteria/{gid}/versions/{vid}/yaml")
+    finally:
+        app.dependency_overrides.clear()
+        _clear_state()
+
+    assert resp.status_code == 200
+    body = resp.json()
+    assert "yaml" in body
+    assert "name: test" in body["yaml"]
+
+
+@pytest.mark.asyncio
+async def test_get_version_yaml_wrong_group_returns_404(
+    mock_user: MagicMock, mock_redis_criteria: AsyncMock
+) -> None:
+    _set_state(mock_redis_criteria)
+    app.dependency_overrides[require_operator] = lambda: mock_user
+
+    scalar_result = MagicMock()
+    scalar_result.scalar_one_or_none.return_value = None
+
+    db_mock: AsyncMock = AsyncMock()
+    db_mock.__aenter__ = AsyncMock(return_value=db_mock)
+    db_mock.__aexit__ = AsyncMock(return_value=None)
+    db_mock.execute = AsyncMock(return_value=scalar_result)
+
+    try:
+        with patch("app.api.criteria.AsyncSession", return_value=db_mock):
+            async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as c:
+                resp = await c.get(f"/api/criteria/{uuid.uuid4()}/versions/{uuid.uuid4()}/yaml")
+    finally:
+        app.dependency_overrides.clear()
+        _clear_state()
+
+    assert resp.status_code == 404
+
+
+# ---------------------------------------------------------------------------
+# POST /api/criteria/{group_id}/save-as
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_save_as_creates_new_group(
+    mock_user: MagicMock,
+    mock_redis_criteria: AsyncMock,
+    signed_session: str,
+    mock_group: MagicMock,
+) -> None:
+    _set_state(mock_redis_criteria)
+    app.dependency_overrides[require_operator] = lambda: mock_user
+    db_mock = _make_criteria_db_mock()
+
+    try:
+        with patch("app.api.criteria.AsyncSession", return_value=db_mock):
+            async with AsyncClient(
+                transport=ASGITransport(app=app),
+                base_url="http://test",
+                follow_redirects=False,
+            ) as c:
+                resp = await c.post(
+                    f"/api/criteria/{mock_group.id}/save-as",
+                    data={
+                        "yaml_text": VALID_YAML,
+                        "new_display_name": "My New Criteria",
+                        "csrf_token": _SESSION_CSRF,
+                    },
+                    cookies={SESSION_COOKIE: signed_session},
+                )
+    finally:
+        app.dependency_overrides.clear()
+        _clear_state()
+
+    assert resp.status_code == 303
+    assert resp.headers["location"].startswith("/criteria/")
+
+
+@pytest.mark.asyncio
+async def test_save_as_invalid_yaml_returns_error(
+    mock_user: MagicMock,
+    mock_redis_criteria: AsyncMock,
+    signed_session: str,
+    mock_group: MagicMock,
+) -> None:
+    _set_state(mock_redis_criteria)
+    app.dependency_overrides[require_operator] = lambda: mock_user
+
+    try:
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as c:
+            resp = await c.post(
+                f"/api/criteria/{mock_group.id}/save-as",
+                data={
+                    "yaml_text": INVALID_YAML,
+                    "new_display_name": "My New Criteria",
+                    "csrf_token": _SESSION_CSRF,
+                },
+                cookies={SESSION_COOKIE: signed_session},
+            )
+    finally:
+        app.dependency_overrides.clear()
+        _clear_state()
+
+    assert resp.status_code == 422
+    assert "Validation errors" in resp.text or "editor" in resp.text.lower()
+
+
 @pytest.mark.asyncio
 async def test_clone_name_collision_increments_suffix(
     mock_user: MagicMock,

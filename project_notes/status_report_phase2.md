@@ -92,6 +92,32 @@ WHERE name IN (
 
 ---
 
+## Criteria Overhaul — Sprint 2.3 — Editor: Save As + Version restore
+**Completed:** 2026-05-17
+
+### What was built
+- `app/api/criteria.py` — `GET /api/criteria/{group_id}/versions/{version_id}/yaml`: loads a specific CriteriaVersion by both `id` and `group_id` (cross-group access prevented), returns `JSONResponse({"yaml": ...})`
+- `app/api/criteria.py` — `POST /api/criteria/{group_id}/save-as`: form params `yaml_text` + `new_display_name`; slugifies name via `re.sub(r'[^a-z0-9]+', '-', ...)`; validates YAML (422 on error); overrides `metadata.name`/`display_name` in snapshot; creates CriteriaGroup (`is_template=False`) + CriteriaVersion v1 with pre-generated UUID; audit log `action="criteria_save_as"`; IntegrityError → 409 editor render; success → 303 redirect
+- `app/templates/criteria/editor.html` — added `loadVersion(groupId, versionId)` JS function (alongside `loadCriteriaTemplate`); added `x-data="{ showSaveAs: false, newName: '' }"` to editor column div; added Load button per version in inline server-side version list; added "Save As" button in button row (only when `group` is not None); added Save As modal (fixed overlay, Alpine.js, `@submit` handler populates hidden `yaml_text` from textarea before POST)
+- `app/templates/criteria/version_history.html` — added Load button per version entry (calls `loadVersion(group_id, v.id)`)
+- `tests/api/test_criteria_api.py` — 4 new tests: `test_get_version_yaml_returns_yaml`, `test_get_version_yaml_wrong_group_returns_404`, `test_save_as_creates_new_group`, `test_save_as_invalid_yaml_returns_error`
+
+### Key decisions
+- `GET /versions/{version_id}/yaml` queries on both `id == version_id AND group_id == group_id` — prevents fetching a version from a different group via a valid version UUID
+- `save-as` validates YAML before any DB interaction, so invalid-YAML 422 errors need no DB mock in tests
+- Save As modal uses `@submit="$el.querySelector('[name=yaml_text]').value = document.getElementById('yaml_text').value"` — populates hidden field synchronously before form submit, avoiding Alpine reactive binding complexity
+- `style="display: none;"` on modal div prevents flash before Alpine.js initializes
+- Load buttons added to BOTH the inline server-side version list in `editor.html` AND the `version_history.html` HTMX partial (since the HTMX partial is wired but not yet invoked from the template; the inline list is what users see today)
+
+### Test results
+572/572 unit tests green | 24/24 API tests green | ruff clean | mypy strict clean
+
+### Bugs found and fixed
+- None; clean sprint
+
+### Open issues / follow-ups
+- None; clean sprint
+
 ## Criteria Overhaul — Sprint 2.2 — List page redesign + delete/clone API
 **Completed:** 2026-05-17
 

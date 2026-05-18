@@ -14,6 +14,10 @@
                     {{ v.created_at.strftime('%Y-%m-%d %H:%M') if v.created_at else '—' }}
                 </p>
             </div>
+            <button type="button"
+                    onclick="loadVersion('{{ group_id }}', '{{ v.id }}')"
+                    class="flex-shrink-0 text-xs text-blue-600 dark:text-blue-400 hover:underline"
+                    aria-label="Load version {{ v.version }}">Load</button>
         </div>
     </li>
     {% endfor %}

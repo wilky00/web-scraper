@@ -374,3 +374,10 @@ Deferred: Streaming responses (SSE) → deferred; full response + loading indica
 - [x] `app/templates/criteria/list.html` — tag filter bar, search, Template badge, Delete/Clone buttons
 - [x] `tests/api/test_criteria_api.py` — 4 new tests: soft delete, template blocked, clone, name collision
 - NOTE: Clone pre-generates UUID (`id=candidate_id`) to avoid dependence on SQLAlchemy flush setting PK default in unit test context
+
+### Sprint 2.3 — Editor: Save As + Version restore — COMPLETE (verified green 2026-05-17, 572/572 unit tests + 24/24 API tests, ruff+mypy clean)
+- [x] `app/api/criteria.py` — add `GET /api/criteria/{group_id}/versions/{version_id}/yaml` endpoint
+- [x] `app/api/criteria.py` — add `POST /api/criteria/{group_id}/save-as` endpoint
+- [x] `app/templates/criteria/editor.html` — `loadVersion()` JS function + inline Load buttons + Save As button + modal
+- [x] `app/templates/criteria/version_history.html` — Load button per version
+- [x] `tests/api/test_criteria_api.py` — 4 new tests
