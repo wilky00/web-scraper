@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import copy
+import html as _html
 import re
 import secrets
 import uuid
@@ -32,22 +33,76 @@ router = APIRouter()
 templates = Jinja2Templates(directory=str(Path(__file__).parent.parent / "templates"))
 
 
-def _validation_html(errors: list[str]) -> str:
+def _validation_html(
+    errors: list[str],
+    *,
+    parse_error_line: int | None = None,
+    ai_hint: bool = False,
+    formatted_yaml: str | None = None,
+) -> str:
     """Return an HTML fragment for the HTMX validation result panel."""
+    # Carry formatted YAML back to the frontend via a hidden data attribute.
+    fmt_carrier = ""
+    if formatted_yaml is not None:
+        escaped_yaml = _html.escape(formatted_yaml, quote=True)
+        fmt_carrier = f'<div id="formatted-yaml" class="hidden" data-yaml="{escaped_yaml}"></div>'
+
     if not errors:
         return (
+            f"{fmt_carrier}"
             '<div class="rounded-md bg-green-50 dark:bg-green-900/20 border border-green-200'
-            ' dark:border-green-800 p-4">'
+            " dark:border-green-800 p-4\">"
             '<p class="text-sm font-medium text-green-800 dark:text-green-300">'
             "Valid YAML — ready to save.</p></div>"
         )
-    items = "".join(f'<li class="font-mono text-xs break-all">{err}</li>' for err in errors)
+
+    if parse_error_line is not None:
+        # YAML syntax error — include line marker and an AI tip.
+        line_marker = f'<span data-error-line="{parse_error_line}" class="hidden"></span>'
+        detail_html = "".join(
+            f'<p class="font-mono text-xs text-red-600 dark:text-red-400 break-all mt-1">'
+            f"{_html.escape(err)}</p>"
+            for err in errors
+        )
+        hint_html = (
+            '<p class="mt-3 text-xs text-red-500 dark:text-red-400 italic">'
+            "Tip: Paste your YAML into the AI Assistant below — it can help fix syntax errors."
+            "</p>"
+            if ai_hint
+            else ""
+        )
+        return (
+            f"{fmt_carrier}"
+            '<div class="rounded-md bg-red-50 dark:bg-red-900/20 border border-red-200'
+            f' dark:border-red-800 p-4">{line_marker}'
+            '<p class="text-sm font-medium text-red-800 dark:text-red-300">'
+            f"YAML syntax error on line {parse_error_line}</p>"
+            f"{detail_html}{hint_html}</div>"
+        )
+
+    # Logic / Pydantic validation errors — field path in code, message as text.
+    def _err_item(err: str) -> str:
+        if ": " in err:
+            path, msg = err.split(": ", 1)
+            code_cls = "font-mono text-xs bg-red-100 dark:bg-red-900/40 px-1 rounded shrink-0"
+            span_cls = "text-xs text-red-700 dark:text-red-400"
+            return (
+                '<li class="flex flex-wrap gap-x-2 items-baseline">'
+                f'<code class="{code_cls}">{_html.escape(path)}</code>'
+                f'<span class="{span_cls}">{_html.escape(msg)}</span></li>'
+            )
+        return (
+            f'<li class="font-mono text-xs text-red-700 dark:text-red-400 break-all">'
+            f"{_html.escape(err)}</li>"
+        )
+
+    items = "".join(_err_item(e) for e in errors)
     return (
+        f"{fmt_carrier}"
         '<div class="rounded-md bg-red-50 dark:bg-red-900/20 border border-red-200'
-        ' dark:border-red-800 p-4">'
+        " dark:border-red-800 p-4\">"
         '<p class="text-sm font-medium text-red-800 dark:text-red-300 mb-2">Validation errors</p>'
-        f'<ul class="text-sm text-red-700 dark:text-red-400 list-disc list-inside space-y-1">'
-        f"{items}</ul>"
+        f'<ul class="space-y-1.5">{items}</ul>'
         "</div>"
     )
 
@@ -104,10 +159,42 @@ def _render_editor(
 @router.post("/api/criteria/validate", response_class=HTMLResponse)
 async def validate_criteria(
     yaml_text: str = Form(...),
+    normalize: bool = Form(default=False),
     user: User = Depends(require_operator),
 ) -> HTMLResponse:
-    _, errors = validate_criteria_yaml(yaml_text)
-    return HTMLResponse(content=_validation_html(errors))
+    # Step 1: YAML parse — extract line/column from parse errors.
+    try:
+        parsed = yaml.safe_load(yaml_text)
+    except yaml.YAMLError as exc:
+        mark = getattr(exc, "problem_mark", None)
+        line = (mark.line + 1) if mark is not None else None
+        col = (mark.column + 1) if mark is not None else None
+        problem = getattr(exc, "problem", None) or str(exc)
+        detail = f"column {col}: {problem}" if col else problem
+        return HTMLResponse(content=_validation_html([detail], parse_error_line=line, ai_hint=True))
+
+    if not isinstance(parsed, dict):
+        return HTMLResponse(
+            content=_validation_html(
+                [f"Criteria YAML must be a mapping, got {type(parsed).__name__}"],
+                ai_hint=True,
+            )
+        )
+
+    # Step 2: normalize (reformat) when requested by the manual Validate button.
+    formatted_yaml: str | None = None
+    yaml_to_validate = yaml_text
+    if normalize:
+        normalized = yaml.dump(
+            parsed, sort_keys=False, allow_unicode=True, default_flow_style=False
+        )
+        if normalized.strip() != yaml_text.strip():
+            formatted_yaml = normalized
+        yaml_to_validate = normalized
+
+    # Step 3: Pydantic logic validation.
+    _, errors = validate_criteria_yaml(yaml_to_validate)
+    return HTMLResponse(content=_validation_html(errors, formatted_yaml=formatted_yaml))
 
 
 # ---------------------------------------------------------------------------

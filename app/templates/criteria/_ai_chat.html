@@ -12,6 +12,7 @@
         availableModels: [],
         modelsLoaded: false,
         loadingModels: false,
+        pendingYaml: null,
         async loadModels(force = false) {
             if (this.modelsLoaded && !force) return;
             this.loadingModels = true;
@@ -44,6 +45,7 @@
                 const data = await resp.json();
                 if (resp.ok) {
                     this.messages.push({ role: 'assistant', content: data.reply, suggested_yaml: data.suggested_yaml });
+                    if (data.suggested_yaml) this.pendingYaml = data.suggested_yaml;
                 } else {
                     this.messages.push({ role: 'assistant', content: (data.error || 'Something went wrong. Please try again.'), suggested_yaml: null });
                 }
@@ -129,7 +131,7 @@
         <!-- Message area -->
         <div
             x-ref="messageArea"
-            class="h-72 overflow-y-auto px-4 py-3 space-y-3 bg-gray-50 dark:bg-gray-900/40"
+            class="h-36 overflow-y-auto px-4 py-3 space-y-3 bg-gray-50 dark:bg-gray-900/40"
         >
             <!-- Empty state -->
             <template x-if="messages.length === 0">
@@ -178,6 +180,32 @@
                         <span class="ml-1 text-xs text-gray-400 dark:text-gray-500">Thinking...</span>
                     </div>
                 </div>
+            </div>
+        </div>
+
+        <!-- YAML suggestion confirmation banner -->
+        <div
+            x-show="pendingYaml"
+            x-transition
+            class="px-4 py-2 bg-indigo-50 dark:bg-indigo-900/30 border-t border-indigo-200 dark:border-indigo-800 flex items-center justify-between gap-3"
+            style="display: none;"
+        >
+            <span class="text-sm font-medium text-indigo-700 dark:text-indigo-300">AI has a YAML suggestion ready.</span>
+            <div class="flex items-center gap-2 flex-shrink-0">
+                <button
+                    type="button"
+                    @click="applyYaml(pendingYaml); pendingYaml = null"
+                    class="rounded bg-indigo-600 hover:bg-indigo-500 px-3 py-1 text-xs font-medium text-white focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-1 transition-colors"
+                >
+                    Apply to editor
+                </button>
+                <button
+                    type="button"
+                    @click="pendingYaml = null"
+                    class="rounded border border-indigo-300 dark:border-indigo-700 px-3 py-1 text-xs font-medium text-indigo-600 dark:text-indigo-400 hover:bg-indigo-50 dark:hover:bg-indigo-900/50 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-1 transition-colors"
+                >
+                    Dismiss
+                </button>
             </div>
         </div>
 

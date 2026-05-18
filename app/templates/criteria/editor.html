@@ -3,6 +3,61 @@
 {% block head %}
 <style>.htmx-indicator{display:none}.htmx-request .htmx-indicator{display:inline-flex;align-items:center}</style>
 <script>
+function syncLineNumbers() {
+    var ta = document.getElementById('yaml_text');
+    var gutter = document.getElementById('line-numbers');
+    if (!ta || !gutter) return;
+    var count = (ta.value.match(/\n/g) || []).length + 1;
+    while (gutter.children.length < count) {
+        var d = document.createElement('div');
+        d.textContent = gutter.children.length + 1;
+        gutter.appendChild(d);
+    }
+    while (gutter.children.length > count) {
+        gutter.removeChild(gutter.lastChild);
+    }
+    gutter.scrollTop = ta.scrollTop;
+}
+
+document.addEventListener('DOMContentLoaded', function () {
+    var ta = document.getElementById('yaml_text');
+    if (!ta) return;
+    syncLineNumbers();
+    ta.addEventListener('input', syncLineNumbers);
+    ta.addEventListener('scroll', function () {
+        document.getElementById('line-numbers').scrollTop = ta.scrollTop;
+    });
+});
+
+// After HTMX swaps the validation panel: highlight error lines + apply formatted YAML.
+document.addEventListener('htmx:afterSettle', function (e) {
+    if (!e.detail.target || e.detail.target.id !== 'validation-panel') return;
+
+    var gutter = document.getElementById('line-numbers');
+    if (gutter) {
+        Array.from(gutter.children).forEach(function (d) {
+            d.classList.remove('text-red-500', 'font-bold');
+        });
+        var errLineEl = e.detail.target.querySelector('[data-error-line]');
+        if (errLineEl) {
+            var n = parseInt(errLineEl.dataset.errorLine, 10);
+            if (!isNaN(n) && gutter.children[n - 1]) {
+                gutter.children[n - 1].classList.add('text-red-500', 'font-bold');
+            }
+        }
+    }
+
+    var fmtEl = document.getElementById('formatted-yaml');
+    if (fmtEl) {
+        var ta = document.getElementById('yaml_text');
+        if (ta && fmtEl.dataset.yaml && fmtEl.dataset.yaml !== ta.value) {
+            ta.value = fmtEl.dataset.yaml;
+            ta.dispatchEvent(new Event('input'));
+            syncLineNumbers();
+        }
+    }
+});
+
 async function loadCriteriaTemplate(groupId) {
     try {
         const resp = await fetch('/api/criteria/' + groupId + '/yaml');
@@ -61,7 +116,7 @@ async function loadVersion(groupId, versionId) {
                     <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
                     </svg>
-                    Criteria Wizard
+                    Template Wizard
                 </button>
             </div>
             {% if group %}
@@ -102,21 +157,28 @@ async function loadVersion(groupId, versionId) {
                         <label for="yaml_text" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">
                             Criteria YAML
                         </label>
-                        <textarea
-                            id="yaml_text"
-                            name="yaml_text"
-                            rows="28"
-                            spellcheck="false"
-                            autocomplete="off"
-                            class="block w-full rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 px-4 py-3 font-mono text-sm text-gray-900 dark:text-gray-100 placeholder-gray-400 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 resize-y"
-                            hx-post="/api/criteria/validate"
-                            hx-trigger="input delay:700ms, keyup[key=='Enter'] delay:300ms"
-                            hx-target="#validation-panel"
-                            hx-include="#csrf-input"
-                            hx-swap="innerHTML"
-                            aria-label="Criteria YAML"
-                            x-on:input="const m = $event.target.value.match(/display_name:\s*(.+)/); criteriaName = (m && m[1].trim()) || '{% if group %}{{ group.display_name | e }}{% else %}What do you want to search for today?{% endif %}'"
-                        >{{ yaml_text }}</textarea>
+                        <div class="flex rounded-md border border-gray-300 dark:border-gray-600 shadow-sm overflow-hidden focus-within:border-blue-500 focus-within:ring-1 focus-within:ring-blue-500">
+                            <div
+                                id="line-numbers"
+                                class="overflow-hidden select-none text-right py-3 pr-2 pl-2 font-mono text-xs leading-5 text-gray-400 dark:text-gray-600 bg-gray-50 dark:bg-gray-800/60 border-r border-gray-200 dark:border-gray-700 min-w-[2.75rem]"
+                                aria-hidden="true"
+                            ></div>
+                            <textarea
+                                id="yaml_text"
+                                name="yaml_text"
+                                rows="28"
+                                spellcheck="false"
+                                autocomplete="off"
+                                class="flex-1 px-4 py-3 font-mono text-sm leading-5 bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 placeholder-gray-400 focus:outline-none resize-y"
+                                hx-post="/api/criteria/validate"
+                                hx-trigger="input delay:700ms, keyup[key=='Enter'] delay:300ms"
+                                hx-target="#validation-panel"
+                                hx-include="#csrf-input"
+                                hx-swap="innerHTML"
+                                aria-label="Criteria YAML"
+                                x-on:input="const m = $event.target.value.match(/display_name:\s*(.+)/); criteriaName = (m && m[1].trim()) || '{% if group %}{{ group.display_name | e }}{% else %}What do you want to search for today?{% endif %}'"
+                            >{{ yaml_text }}</textarea>
+                        </div>
                         {# x-ref is not used here — the AI chat panel targets this textarea by id #}
                     </div>
 
@@ -138,13 +200,14 @@ async function loadVersion(groupId, versionId) {
                             <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4" />
                             </svg>
-                            {% if group %}Save as new version{% else %}Save criteria{% endif %}
+                            Save Template
                         </button>
                         <button
                             type="button"
                             hx-post="/api/criteria/validate"
                             hx-target="#validation-panel"
                             hx-include="#yaml_text,#csrf-input"
+                            hx-vals='{"normalize": "true"}'
                             hx-swap="innerHTML"
                             hx-indicator="#validate-btn-spinner"
                             hx-on:htmx:after-request="document.getElementById('validation-panel').scrollIntoView({behavior:'smooth',block:'nearest'})"
@@ -212,7 +275,7 @@ async function loadVersion(groupId, versionId) {
                                 <button type="submit"
                                         :disabled="!newName.trim()"
                                         class="inline-flex items-center gap-2 rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-blue-500 disabled:opacity-50 disabled:cursor-not-allowed focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 dark:focus:ring-offset-gray-800">
-                                    Save as new criteria
+                                    Save as New Template
                                 </button>
                             </div>
                         </form>
@@ -317,28 +380,23 @@ async function loadVersion(groupId, versionId) {
                 </div>
                 {% endif %}
 
-                <!-- Quick reference -->
-                <div class="rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 shadow-sm overflow-hidden">
-                    <div class="px-4 py-3 border-b border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900/50">
-                        <h2 class="text-sm font-semibold text-gray-700 dark:text-gray-300">Operators</h2>
-                    </div>
-                    <div class="px-4 py-3">
-                        <ul class="space-y-0.5 text-xs font-mono text-gray-600 dark:text-gray-400">
-                            <li>exists · not_exists</li>
-                            <li>equals · not_equals</li>
-                            <li>contains · contains_any</li>
-                            <li>greater_than_or_equal</li>
-                            <li>less_than_or_equal</li>
-                            <li>in · not_in</li>
-                            <li>domain_matches</li>
-                            <li>matches_regex</li>
-                        </ul>
-                        <p class="mt-3 text-xs text-gray-400 dark:text-gray-500 font-semibold">Namespaces</p>
-                        <ul class="mt-1 space-y-0.5 text-xs font-mono text-gray-600 dark:text-gray-400">
-                            <li>source.* · crawl.* · html.*</li>
-                            <li>links.* · extraction.*</li>
-                        </ul>
-                    </div>
+                <!-- Syntax guide link -->
+                <div class="rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 shadow-sm p-4 text-center">
+                    <a
+                        href="/docs/criteria-syntax"
+                        target="_blank"
+                        rel="noopener"
+                        class="inline-flex items-center gap-1.5 text-sm font-medium text-blue-600 dark:text-blue-400 hover:underline"
+                        aria-label="Open Criteria YAML Syntax Guide in a new tab"
+                    >
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+                        </svg>
+                        View Syntax Guide
+                    </a>
+                    <p class="mt-1.5 text-xs text-gray-400 dark:text-gray-500">
+                        Full schema reference — operators, namespaces, and examples.
+                    </p>
                 </div>
             </div>
 

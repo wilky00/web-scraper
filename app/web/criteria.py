@@ -211,3 +211,20 @@ async def criteria_editor(
             "templates": template_list,
         },
     )
+
+
+# ---------------------------------------------------------------------------
+# GET /docs/criteria-syntax  (criteria YAML syntax reference)
+# ---------------------------------------------------------------------------
+
+
+@router.get("/docs/criteria-syntax", response_class=HTMLResponse)
+async def criteria_syntax_guide(
+    request: Request,
+    user: User = Depends(require_operator),
+) -> Response:
+    return templates.TemplateResponse(
+        request,
+        "docs/criteria_syntax.html",
+        {"user": user},
+    )

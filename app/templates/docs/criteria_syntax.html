@@ -1,0 +1,445 @@
+{% extends "base.html" %}
+{% block title %}Criteria YAML Syntax Guide — Web Scraper{% endblock %}
+{% block content %}
+<div class="min-h-screen p-8">
+    <div class="mx-auto max-w-4xl">
+
+        <!-- Header -->
+        <div class="mb-8">
+            <div class="flex items-center gap-2 text-sm text-gray-500 dark:text-gray-400 mb-2">
+                <a href="/criteria/new" class="hover:text-blue-600 dark:hover:text-blue-400">Criteria Editor</a>
+                <span>›</span>
+                <span class="text-gray-700 dark:text-gray-300">Syntax Guide</span>
+            </div>
+            <h1 class="text-2xl font-semibold tracking-tight text-gray-900 dark:text-gray-100">Criteria YAML Syntax Guide</h1>
+            <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">
+                Full schema reference for criteria files. This guide is versioned in git alongside the schema.
+                Update <code class="font-mono text-xs bg-gray-100 dark:bg-gray-800 px-1 rounded">config/ai/skills/criteria_creation.md</code>
+                and this page whenever the schema changes.
+            </p>
+        </div>
+
+        <div class="space-y-10">
+
+            <!-- Top-Level Structure -->
+            <section>
+                <h2 class="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-3 pb-1 border-b border-gray-200 dark:border-gray-700">Top-Level Structure</h2>
+                <pre class="rounded-md bg-gray-900 text-gray-100 px-4 py-3 text-sm font-mono overflow-x-auto"><code>metadata:    # required
+source:      # required
+crawl:       # optional
+extraction:  # optional
+rules:       # optional
+scoring:     # optional
+dedup:       # optional
+output:      # optional</code></pre>
+            </section>
+
+            <!-- metadata -->
+            <section>
+                <h2 class="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-1 pb-1 border-b border-gray-200 dark:border-gray-700">
+                    <code class="font-mono text-base">metadata</code>
+                    <span class="ml-2 text-xs font-normal text-red-500">required</span>
+                </h2>
+                <pre class="rounded-md bg-gray-900 text-gray-100 px-4 py-3 text-sm font-mono overflow-x-auto mt-3"><code>metadata:
+  name: unique-slug           # lowercase, hyphens only — used as identifier
+  display_name: Human Name    # shown in the UI
+  description: "What this criteria finds"
+  tags: [tag1, tag2]          # optional list of strings</code></pre>
+            </section>
+
+            <!-- source -->
+            <section>
+                <h2 class="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-1 pb-1 border-b border-gray-200 dark:border-gray-700">
+                    <code class="font-mono text-base">source</code>
+                    <span class="ml-2 text-xs font-normal text-red-500">required</span>
+                </h2>
+                <p class="mt-2 text-sm text-gray-600 dark:text-gray-400">Defines the connector and query parameters.</p>
+                <pre class="rounded-md bg-gray-900 text-gray-100 px-4 py-3 text-sm font-mono overflow-x-auto mt-3"><code>source:
+  connector: google_places    # connector type (google_places or fixture)
+  max_results: 60             # max records to retrieve (default: 60, min: 1)
+  query_fields:               # connector-specific query parameters
+    - field: type
+      value: bakery
+    - field: location
+      value: "Nashville, TN"
+    - field: radius
+      value: "48000"          # metres</code></pre>
+                <p class="mt-2 text-sm text-gray-500 dark:text-gray-400">
+                    <strong>Google Places query fields:</strong>
+                    <code class="font-mono text-xs bg-gray-100 dark:bg-gray-800 px-1 rounded">type</code>,
+                    <code class="font-mono text-xs bg-gray-100 dark:bg-gray-800 px-1 rounded">location</code>,
+                    <code class="font-mono text-xs bg-gray-100 dark:bg-gray-800 px-1 rounded">radius</code>,
+                    <code class="font-mono text-xs bg-gray-100 dark:bg-gray-800 px-1 rounded">keyword</code>,
+                    <code class="font-mono text-xs bg-gray-100 dark:bg-gray-800 px-1 rounded">language</code>
+                </p>
+            </section>
+
+            <!-- crawl -->
+            <section>
+                <h2 class="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-1 pb-1 border-b border-gray-200 dark:border-gray-700">
+                    <code class="font-mono text-base">crawl</code>
+                    <span class="ml-2 text-xs font-normal text-gray-400">optional</span>
+                </h2>
+                <p class="mt-2 text-sm text-gray-600 dark:text-gray-400">Controls website crawling after connector discovery.</p>
+                <pre class="rounded-md bg-gray-900 text-gray-100 px-4 py-3 text-sm font-mono overflow-x-auto mt-3"><code>crawl:
+  enabled: true               # set false to skip crawling entirely
+  max_depth: 2                # link depth from landing page (0–10, default: 3)
+  max_pages_per_domain: 10    # per-domain page cap (default: 50)
+  timeout_seconds: 30         # per-page timeout (1–300, default: 30)
+  delay_ms: 1000              # delay between requests in ms (default: 1000)
+  include_url_patterns:       # only follow URLs matching these patterns (regex)
+    - ".*menu.*"
+    - ".*about.*"
+  exclude_url_patterns:       # never follow URLs matching these patterns
+    - "/order"
+    - "/cart"</code></pre>
+            </section>
+
+            <!-- extraction -->
+            <section>
+                <h2 class="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-1 pb-1 border-b border-gray-200 dark:border-gray-700">
+                    <code class="font-mono text-base">extraction</code>
+                    <span class="ml-2 text-xs font-normal text-gray-400">optional</span>
+                </h2>
+                <p class="mt-2 text-sm text-gray-600 dark:text-gray-400">Specifies which fields to extract from crawled pages.</p>
+                <pre class="rounded-md bg-gray-900 text-gray-100 px-4 py-3 text-sm font-mono overflow-x-auto mt-3"><code>extraction:
+  fields:
+    - name: email
+    - name: phone
+      source_priority: [html, connector]   # which source takes precedence
+    - name: address
+      source_priority: [connector, html]
+    - name: name
+    - name: website</code></pre>
+                <div class="mt-2 space-y-1 text-sm text-gray-500 dark:text-gray-400">
+                    <p><strong>Extractable field names:</strong>
+                        <code class="font-mono text-xs bg-gray-100 dark:bg-gray-800 px-1 rounded">email</code>,
+                        <code class="font-mono text-xs bg-gray-100 dark:bg-gray-800 px-1 rounded">phone</code>,
+                        <code class="font-mono text-xs bg-gray-100 dark:bg-gray-800 px-1 rounded">name</code>,
+                        <code class="font-mono text-xs bg-gray-100 dark:bg-gray-800 px-1 rounded">website</code>,
+                        <code class="font-mono text-xs bg-gray-100 dark:bg-gray-800 px-1 rounded">address</code>
+                    </p>
+                    <p><strong>source_priority values:</strong>
+                        <code class="font-mono text-xs bg-gray-100 dark:bg-gray-800 px-1 rounded">html</code> (parsed from page),
+                        <code class="font-mono text-xs bg-gray-100 dark:bg-gray-800 px-1 rounded">connector</code> (from API result)
+                    </p>
+                </div>
+            </section>
+
+            <!-- rules -->
+            <section>
+                <h2 class="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-1 pb-1 border-b border-gray-200 dark:border-gray-700">
+                    <code class="font-mono text-base">rules</code>
+                    <span class="ml-2 text-xs font-normal text-gray-400">optional</span>
+                </h2>
+                <p class="mt-2 text-sm text-gray-600 dark:text-gray-400">Rules determine inclusion, exclusion, and bonus scoring.</p>
+                <pre class="rounded-md bg-gray-900 text-gray-100 px-4 py-3 text-sm font-mono overflow-x-auto mt-3"><code>rules:
+  must_have:                  # record excluded if ANY must_have fails
+    - metric: extraction.email
+      operator: exists
+      label: Has email address
+  exclude:                    # record excluded if ANY exclude rule matches
+    - metric: source.rating
+      operator: less_than_or_equal
+      value: 2.0
+      label: Low rated
+  should_have:                # contributes to match_score but not inclusion
+    - metric: crawl.status_code
+      operator: equals
+      value: 200
+      label: Website resolves</code></pre>
+            </section>
+
+            <!-- scoring -->
+            <section>
+                <h2 class="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-1 pb-1 border-b border-gray-200 dark:border-gray-700">
+                    <code class="font-mono text-base">scoring</code>
+                    <span class="ml-2 text-xs font-normal text-gray-400">optional</span>
+                </h2>
+                <p class="mt-2 text-sm text-gray-600 dark:text-gray-400">Weighted scoring on top of <code class="font-mono text-xs bg-gray-100 dark:bg-gray-800 px-1 rounded">should_have</code> rules.</p>
+                <pre class="rounded-md bg-gray-900 text-gray-100 px-4 py-3 text-sm font-mono overflow-x-auto mt-3"><code>scoring:
+  enabled: true
+  minimum_score: 30.0         # records below this score are excluded (0–100)
+  weighted_rules:
+    - metric: extraction.phone
+      operator: exists
+      weight: 2.0             # relative weight (default: 1.0)
+      label: Has phone
+    - metric: extraction.address
+      operator: exists
+      weight: 1.5
+      label: Has physical address</code></pre>
+            </section>
+
+            <!-- dedup -->
+            <section>
+                <h2 class="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-1 pb-1 border-b border-gray-200 dark:border-gray-700">
+                    <code class="font-mono text-base">dedup</code>
+                    <span class="ml-2 text-xs font-normal text-gray-400">optional</span>
+                </h2>
+                <p class="mt-2 text-sm text-gray-600 dark:text-gray-400">Controls automatic deduplication.</p>
+                <pre class="rounded-md bg-gray-900 text-gray-100 px-4 py-3 text-sm font-mono overflow-x-auto mt-3"><code>dedup:
+  primary_key: domain         # first dedup pass key (domain or email)
+  secondary_keys: [email, phone]</code></pre>
+            </section>
+
+            <!-- output -->
+            <section>
+                <h2 class="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-1 pb-1 border-b border-gray-200 dark:border-gray-700">
+                    <code class="font-mono text-base">output</code>
+                    <span class="ml-2 text-xs font-normal text-gray-400">optional</span>
+                </h2>
+                <p class="mt-2 text-sm text-gray-600 dark:text-gray-400">Controls which fields are shown, stored, and exported.</p>
+                <pre class="rounded-md bg-gray-900 text-gray-100 px-4 py-3 text-sm font-mono overflow-x-auto mt-3"><code>output:
+  display_fields: [name, email, phone, address, website, match_score]
+  store_fields: [name, email, phone, address, website, match_score]
+  export_fields: [name, email, phone, address, website]</code></pre>
+            </section>
+
+            <!-- Operators -->
+            <section>
+                <h2 class="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-3 pb-1 border-b border-gray-200 dark:border-gray-700">Operators</h2>
+                <div class="overflow-x-auto">
+                    <table class="w-full text-sm border-collapse">
+                        <thead>
+                            <tr class="bg-gray-50 dark:bg-gray-800">
+                                <th class="text-left px-3 py-2 font-semibold text-gray-700 dark:text-gray-300 border border-gray-200 dark:border-gray-700 font-mono">Operator</th>
+                                <th class="text-left px-3 py-2 font-semibold text-gray-700 dark:text-gray-300 border border-gray-200 dark:border-gray-700">Description</th>
+                                <th class="text-left px-3 py-2 font-semibold text-gray-700 dark:text-gray-300 border border-gray-200 dark:border-gray-700">Example value</th>
+                            </tr>
+                        </thead>
+                        <tbody class="text-gray-700 dark:text-gray-300">
+                            <tr class="border border-gray-200 dark:border-gray-700">
+                                <td class="px-3 py-2 font-mono text-xs border border-gray-200 dark:border-gray-700">exists</td>
+                                <td class="px-3 py-2 border border-gray-200 dark:border-gray-700">Field has a non-empty value</td>
+                                <td class="px-3 py-2 text-gray-400 dark:text-gray-500 border border-gray-200 dark:border-gray-700">(no value needed)</td>
+                            </tr>
+                            <tr class="bg-gray-50/50 dark:bg-gray-800/30 border border-gray-200 dark:border-gray-700">
+                                <td class="px-3 py-2 font-mono text-xs border border-gray-200 dark:border-gray-700">not_exists</td>
+                                <td class="px-3 py-2 border border-gray-200 dark:border-gray-700">Field is missing or empty</td>
+                                <td class="px-3 py-2 text-gray-400 dark:text-gray-500 border border-gray-200 dark:border-gray-700">(no value needed)</td>
+                            </tr>
+                            <tr class="border border-gray-200 dark:border-gray-700">
+                                <td class="px-3 py-2 font-mono text-xs border border-gray-200 dark:border-gray-700">equals</td>
+                                <td class="px-3 py-2 border border-gray-200 dark:border-gray-700">Exact match</td>
+                                <td class="px-3 py-2 font-mono text-xs border border-gray-200 dark:border-gray-700">200</td>
+                            </tr>
+                            <tr class="bg-gray-50/50 dark:bg-gray-800/30 border border-gray-200 dark:border-gray-700">
+                                <td class="px-3 py-2 font-mono text-xs border border-gray-200 dark:border-gray-700">not_equals</td>
+                                <td class="px-3 py-2 border border-gray-200 dark:border-gray-700">Not equal</td>
+                                <td class="px-3 py-2 font-mono text-xs border border-gray-200 dark:border-gray-700">"deleted"</td>
+                            </tr>
+                            <tr class="border border-gray-200 dark:border-gray-700">
+                                <td class="px-3 py-2 font-mono text-xs border border-gray-200 dark:border-gray-700">contains</td>
+                                <td class="px-3 py-2 border border-gray-200 dark:border-gray-700">String contains substring</td>
+                                <td class="px-3 py-2 font-mono text-xs border border-gray-200 dark:border-gray-700">"bakery"</td>
+                            </tr>
+                            <tr class="bg-gray-50/50 dark:bg-gray-800/30 border border-gray-200 dark:border-gray-700">
+                                <td class="px-3 py-2 font-mono text-xs border border-gray-200 dark:border-gray-700">contains_any</td>
+                                <td class="px-3 py-2 border border-gray-200 dark:border-gray-700">String contains any item in list</td>
+                                <td class="px-3 py-2 font-mono text-xs border border-gray-200 dark:border-gray-700">["cafe", "bakery"]</td>
+                            </tr>
+                            <tr class="border border-gray-200 dark:border-gray-700">
+                                <td class="px-3 py-2 font-mono text-xs border border-gray-200 dark:border-gray-700">greater_than_or_equal</td>
+                                <td class="px-3 py-2 border border-gray-200 dark:border-gray-700">Numeric &ge; value</td>
+                                <td class="px-3 py-2 font-mono text-xs border border-gray-200 dark:border-gray-700">4.0</td>
+                            </tr>
+                            <tr class="bg-gray-50/50 dark:bg-gray-800/30 border border-gray-200 dark:border-gray-700">
+                                <td class="px-3 py-2 font-mono text-xs border border-gray-200 dark:border-gray-700">less_than_or_equal</td>
+                                <td class="px-3 py-2 border border-gray-200 dark:border-gray-700">Numeric &le; value</td>
+                                <td class="px-3 py-2 font-mono text-xs border border-gray-200 dark:border-gray-700">2.0</td>
+                            </tr>
+                            <tr class="border border-gray-200 dark:border-gray-700">
+                                <td class="px-3 py-2 font-mono text-xs border border-gray-200 dark:border-gray-700">in</td>
+                                <td class="px-3 py-2 border border-gray-200 dark:border-gray-700">Value is in list</td>
+                                <td class="px-3 py-2 font-mono text-xs border border-gray-200 dark:border-gray-700">["open", "active"]</td>
+                            </tr>
+                            <tr class="bg-gray-50/50 dark:bg-gray-800/30 border border-gray-200 dark:border-gray-700">
+                                <td class="px-3 py-2 font-mono text-xs border border-gray-200 dark:border-gray-700">not_in</td>
+                                <td class="px-3 py-2 border border-gray-200 dark:border-gray-700">Value not in list</td>
+                                <td class="px-3 py-2 font-mono text-xs border border-gray-200 dark:border-gray-700">["closed", "inactive"]</td>
+                            </tr>
+                            <tr class="border border-gray-200 dark:border-gray-700">
+                                <td class="px-3 py-2 font-mono text-xs border border-gray-200 dark:border-gray-700">domain_matches</td>
+                                <td class="px-3 py-2 border border-gray-200 dark:border-gray-700">Domain matches pattern</td>
+                                <td class="px-3 py-2 font-mono text-xs border border-gray-200 dark:border-gray-700">"example.com"</td>
+                            </tr>
+                            <tr class="bg-gray-50/50 dark:bg-gray-800/30 border border-gray-200 dark:border-gray-700">
+                                <td class="px-3 py-2 font-mono text-xs border border-gray-200 dark:border-gray-700">matches_regex</td>
+                                <td class="px-3 py-2 border border-gray-200 dark:border-gray-700">Value matches regex</td>
+                                <td class="px-3 py-2 font-mono text-xs border border-gray-200 dark:border-gray-700">"^https?://"</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </section>
+
+            <!-- Negation patterns -->
+            <section>
+                <h2 class="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-3 pb-1 border-b border-gray-200 dark:border-gray-700">Negation Patterns</h2>
+                <div class="rounded-md bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 p-4 mb-4">
+                    <p class="text-sm font-medium text-amber-800 dark:text-amber-300">
+                        There is no <code class="font-mono text-xs bg-amber-100 dark:bg-amber-900/40 px-1 rounded">not_contains</code> operator.
+                    </p>
+                    <p class="mt-1 text-sm text-amber-700 dark:text-amber-400">
+                        To express "field must NOT contain X", put a <code class="font-mono text-xs bg-amber-100 dark:bg-amber-900/40 px-1 rounded">contains</code> rule in the <code class="font-mono text-xs bg-amber-100 dark:bg-amber-900/40 px-1 rounded">exclude</code> section instead.
+                    </p>
+                </div>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                        <p class="text-sm font-medium text-red-700 dark:text-red-400 mb-1">Wrong</p>
+                        <pre class="rounded-md bg-gray-900 text-gray-100 px-4 py-3 text-xs font-mono overflow-x-auto"><code>rules:
+  must_have:
+    - metric: extraction.website
+      operator: not_contains  # invalid
+      value: "starbucks.com"</code></pre>
+                    </div>
+                    <div>
+                        <p class="text-sm font-medium text-green-700 dark:text-green-400 mb-1">Correct</p>
+                        <pre class="rounded-md bg-gray-900 text-gray-100 px-4 py-3 text-xs font-mono overflow-x-auto"><code>rules:
+  exclude:
+    - metric: extraction.website
+      operator: contains
+      value: "starbucks.com"
+      label: Is Starbucks website</code></pre>
+                    </div>
+                </div>
+                <p class="mt-4 text-sm text-gray-600 dark:text-gray-400">
+                    To exclude records where a field matches any of several values, use <code class="font-mono text-xs bg-gray-100 dark:bg-gray-800 px-1 rounded">contains_any</code> in <code class="font-mono text-xs bg-gray-100 dark:bg-gray-800 px-1 rounded">exclude</code>:
+                </p>
+                <pre class="rounded-md bg-gray-900 text-gray-100 px-4 py-3 text-sm font-mono overflow-x-auto mt-2"><code>rules:
+  exclude:
+    - metric: source.name
+      operator: contains_any
+      value: ["Starbucks", "Dunkin", "McDonald's"]
+      label: Chain restaurant</code></pre>
+            </section>
+
+            <!-- Metric Namespaces -->
+            <section>
+                <h2 class="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-3 pb-1 border-b border-gray-200 dark:border-gray-700">Metric Namespaces</h2>
+                <p class="text-sm text-gray-600 dark:text-gray-400 mb-3">
+                    Metrics used in <code class="font-mono text-xs bg-gray-100 dark:bg-gray-800 px-1 rounded">rules</code> and
+                    <code class="font-mono text-xs bg-gray-100 dark:bg-gray-800 px-1 rounded">scoring.weighted_rules</code>
+                    must be <code class="font-mono text-xs bg-gray-100 dark:bg-gray-800 px-1 rounded">&lt;namespace&gt;.&lt;field&gt;</code>:
+                </p>
+                <div class="overflow-x-auto">
+                    <table class="w-full text-sm border-collapse">
+                        <thead>
+                            <tr class="bg-gray-50 dark:bg-gray-800">
+                                <th class="text-left px-3 py-2 font-semibold text-gray-700 dark:text-gray-300 border border-gray-200 dark:border-gray-700 font-mono">Namespace</th>
+                                <th class="text-left px-3 py-2 font-semibold text-gray-700 dark:text-gray-300 border border-gray-200 dark:border-gray-700">What it covers</th>
+                            </tr>
+                        </thead>
+                        <tbody class="text-gray-700 dark:text-gray-300">
+                            <tr class="border border-gray-200 dark:border-gray-700">
+                                <td class="px-3 py-2 font-mono text-xs border border-gray-200 dark:border-gray-700">source.*</td>
+                                <td class="px-3 py-2 border border-gray-200 dark:border-gray-700">Connector API data (e.g. <code class="font-mono text-xs">source.rating</code>, <code class="font-mono text-xs">source.review_count</code>)</td>
+                            </tr>
+                            <tr class="bg-gray-50/50 dark:bg-gray-800/30 border border-gray-200 dark:border-gray-700">
+                                <td class="px-3 py-2 font-mono text-xs border border-gray-200 dark:border-gray-700">crawl.*</td>
+                                <td class="px-3 py-2 border border-gray-200 dark:border-gray-700">Crawl outcomes (e.g. <code class="font-mono text-xs">crawl.status_code</code>, <code class="font-mono text-xs">crawl.pages_crawled</code>)</td>
+                            </tr>
+                            <tr class="border border-gray-200 dark:border-gray-700">
+                                <td class="px-3 py-2 font-mono text-xs border border-gray-200 dark:border-gray-700">html.*</td>
+                                <td class="px-3 py-2 border border-gray-200 dark:border-gray-700">Raw HTML properties (e.g. <code class="font-mono text-xs">html.has_schema_org</code>)</td>
+                            </tr>
+                            <tr class="bg-gray-50/50 dark:bg-gray-800/30 border border-gray-200 dark:border-gray-700">
+                                <td class="px-3 py-2 font-mono text-xs border border-gray-200 dark:border-gray-700">links.*</td>
+                                <td class="px-3 py-2 border border-gray-200 dark:border-gray-700">Links found on page (e.g. <code class="font-mono text-xs">links.has_email_link</code>)</td>
+                            </tr>
+                            <tr class="border border-gray-200 dark:border-gray-700">
+                                <td class="px-3 py-2 font-mono text-xs border border-gray-200 dark:border-gray-700">extraction.*</td>
+                                <td class="px-3 py-2 border border-gray-200 dark:border-gray-700">Extracted field presence (e.g. <code class="font-mono text-xs">extraction.email</code>, <code class="font-mono text-xs">extraction.phone</code>)</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </section>
+
+            <!-- Complete Example -->
+            <section>
+                <h2 class="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-3 pb-1 border-b border-gray-200 dark:border-gray-700">Complete Example</h2>
+                <p class="text-sm text-gray-600 dark:text-gray-400 mb-3">
+                    Bakeries near Nashville whose websites are social media pages:
+                </p>
+                <pre class="rounded-md bg-gray-900 text-gray-100 px-4 py-3 text-sm font-mono overflow-x-auto"><code>metadata:
+  name: bakeries-nashville-social
+  display_name: Nashville Bakeries (Social Media Focus)
+  description: Bakeries within 30 miles of Nashville whose websites are social media pages
+  tags: [bakery, nashville, social-media]
+
+source:
+  connector: google_places
+  max_results: 100
+  query_fields:
+    - field: type
+      value: bakery
+    - field: location
+      value: "Nashville, TN"
+    - field: radius
+      value: "48280"
+
+crawl:
+  enabled: false
+
+extraction:
+  fields:
+    - name: name
+    - name: phone
+      source_priority: [connector, html]
+    - name: address
+      source_priority: [connector, html]
+    - name: website
+
+rules:
+  must_have:
+    - metric: extraction.website
+      operator: exists
+      label: Has website
+    - metric: extraction.website
+      operator: contains_any
+      value: ["facebook.com", "instagram.com"]
+      label: Website is a social media page
+  exclude:
+    - metric: source.rating
+      operator: less_than_or_equal
+      value: 1.0
+      label: Very low rating
+
+scoring:
+  enabled: true
+  minimum_score: 0.0
+  weighted_rules:
+    - metric: extraction.phone
+      operator: exists
+      weight: 1.5
+      label: Has phone number
+    - metric: source.rating
+      operator: greater_than_or_equal
+      value: 4.0
+      weight: 2.0
+      label: High rating
+
+dedup:
+  primary_key: domain
+  secondary_keys: [phone]
+
+output:
+  display_fields: [name, phone, address, website, match_score]
+  store_fields: [name, phone, address, website, match_score]
+  export_fields: [name, phone, address, website]</code></pre>
+            </section>
+
+        </div>
+
+        <div class="mt-10 pt-6 border-t border-gray-200 dark:border-gray-700">
+            <a href="/criteria/new"
+               class="text-sm text-blue-600 dark:text-blue-400 hover:underline">
+                &larr; Back to Criteria Editor
+            </a>
+        </div>
+
+    </div>
+</div>
+{% endblock %}
