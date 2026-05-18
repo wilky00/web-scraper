@@ -69,6 +69,8 @@ ignore = []
 # FastAPI uses Depends() in function signatures, which B008 flags as a false positive
 "app/web/*.py" = ["B008"]
 "app/api/*.py" = ["B008"]
+# YAML template strings inside seed.py legitimately exceed 100 chars
+"app/criteria/seed.py" = ["E501"]
 
 [tool.mypy]
 python_version = "3.12"

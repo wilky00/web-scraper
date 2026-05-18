@@ -53,8 +53,6 @@ async def test_seed_creates_five_templates() -> None:
     empty_result = MagicMock()
     empty_result.scalar_one_or_none.return_value = None
 
-    call_count = {"n": 0}
-
     def _make_db_mock() -> AsyncMock:
         db: AsyncMock = AsyncMock()
         db.__aenter__ = AsyncMock(return_value=db)
@@ -65,23 +63,19 @@ async def test_seed_creates_five_templates() -> None:
         db.commit = AsyncMock()
         return db
 
-    created_groups: list[str] = []
-
-    original_session = __import__(
-        "sqlalchemy.ext.asyncio", fromlist=["AsyncSession"]
-    ).AsyncSession
+    created_groups: list[object] = []
 
     class _FakeSession:
         def __init__(self, engine: object) -> None:
             self._db = _make_db_mock()
-            # Track group names via add()
+            # Track CriteriaGroup objects via add()
             original_add = self._db.add
 
             def _add(obj: object) -> None:
                 from app.models.criteria import CriteriaGroup
 
                 if isinstance(obj, CriteriaGroup):
-                    created_groups.append(obj.name)
+                    created_groups.append(obj)
                 original_add(obj)
 
             self._db.add = _add
@@ -101,4 +95,8 @@ async def test_seed_creates_five_templates() -> None:
         f"Expected {len(_TEMPLATES)} CriteriaGroup inserts, got {len(created_groups)}"
     )
     # All names must be unique
-    assert len(set(created_groups)) == len(created_groups)
+    names = [g.name for g in created_groups]  # type: ignore[union-attr]
+    assert len(set(names)) == len(names)
+    # All seeded groups must have is_template=True
+    for g in created_groups:
+        assert g.is_template is True, f"Expected is_template=True on {g}"  # type: ignore[union-attr]

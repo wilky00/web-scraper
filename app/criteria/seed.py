@@ -428,6 +428,7 @@ async def seed_example_criteria(
                 description=config.metadata.description,
                 tags=config.metadata.tags,
                 is_active=True,
+                is_template=True,
             )
             db.add(group)
             await db.flush()

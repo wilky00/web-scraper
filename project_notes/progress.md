@@ -356,3 +356,13 @@ Deferred: Streaming responses (SSE) → deferred; full response + loading indica
 - ruff clean, mypy strict clean
 - Deferred: MinIO raw HTML upload (`raw_html_path`) → Phase 8
 - Deferred: Sprint 4.1 helpers wired into orchestrator → Phase 6
+
+## Phase 2 (Criteria Overhaul) — Criteria Management Page
+
+### Sprint 2.1 — `is_template` column + seeder update — COMPLETE (verified green 2026-05-17, 572/572 unit tests, ruff clean)
+- [x] `app/models/criteria.py` — add `is_template: Mapped[bool]` column
+- [x] `migrations/versions/b1c2d3e4f5a6_add_is_template_to_criteria_groups.py` — new migration (down_revision=a9c69ca6be9b)
+- [x] `app/criteria/seed.py` — set `is_template=True` in seeder
+- [x] `tests/unit/test_criteria_seed.py` — assert `is_template=True` on created groups
+- [x] `pyproject.toml` — added E501 per-file-ignore for seed.py (YAML string literals exceed 100 chars legitimately)
+- NOTE: Staging backfill required after migration apply: UPDATE criteria_groups SET is_template=true WHERE name IN ('social-only-businesses-nashville', 'nashville-barbershops-legacy-html', 'restaurants-missing-contact-info', 'local-shops-http-only', 'nashville-gyms-without-online-booking')

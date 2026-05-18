@@ -20,6 +20,7 @@ class CriteriaGroup(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     description: Mapped[str] = mapped_column(Text, nullable=False, default="")
     tags: Mapped[list[str]] = mapped_column(JSONB, nullable=False, default=list)
     is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+    is_template: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
 
     versions: Mapped[list[CriteriaVersion]] = relationship(
         "CriteriaVersion", back_populates="group", order_by="CriteriaVersion.version"
