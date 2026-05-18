@@ -7,6 +7,7 @@ Revises: d3e4f5a6b7c8
 Create Date: 2026-05-18 08:00:00.000000
 
 """
+
 from __future__ import annotations
 
 import sqlalchemy as sa
@@ -44,7 +45,5 @@ def upgrade() -> None:
 
 def downgrade() -> None:
     op.drop_index("ix_criteria_groups_project_id", table_name="criteria_groups")
-    op.drop_constraint(
-        "fk_criteria_groups_project_id", "criteria_groups", type_="foreignkey"
-    )
+    op.drop_constraint("fk_criteria_groups_project_id", "criteria_groups", type_="foreignkey")
     op.drop_column("criteria_groups", "project_id")

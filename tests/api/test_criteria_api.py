@@ -470,7 +470,7 @@ async def test_criteria_new_renders_editor(
 
     assert resp.status_code == 200
     assert "textarea" in resp.text.lower()
-    assert "New Criteria" in resp.text
+    assert "Criteria Editor" in resp.text
 
 
 # ---------------------------------------------------------------------------

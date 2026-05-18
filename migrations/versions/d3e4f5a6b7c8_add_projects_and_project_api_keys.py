@@ -9,38 +9,60 @@ Create Date: 2026-05-18 00:00:00.000000
 
 from __future__ import annotations
 
-from typing import Sequence, Union
+from collections.abc import Sequence
 
 import sqlalchemy as sa
 from alembic import op
 from sqlalchemy.dialects import postgresql
 
 revision: str = "d3e4f5a6b7c8"
-down_revision: Union[str, None] = "c2d3e4f5a6b7"
-branch_labels: Union[str, Sequence[str], None] = None
-depends_on: Union[str, Sequence[str], None] = None
+down_revision: str | None = "c2d3e4f5a6b7"
+branch_labels: str | Sequence[str] | None = None
+depends_on: str | Sequence[str] | None = None
 
 
 def upgrade() -> None:
     op.create_table(
         "projects",
-        sa.Column("id", postgresql.UUID(as_uuid=True), nullable=False, default=sa.text("gen_random_uuid()")),
+        sa.Column(
+            "id",
+            postgresql.UUID(as_uuid=True),
+            nullable=False,
+            default=sa.text("gen_random_uuid()"),
+        ),
         sa.Column("name", sa.String(255), nullable=False),
         sa.Column("description", sa.Text(), nullable=True),
         sa.Column("created_by", postgresql.UUID(as_uuid=True), nullable=True),
-        sa.Column("created_at", sa.DateTime(timezone=True), server_default=sa.text("now()"), nullable=False),
+        sa.Column(
+            "created_at",
+            sa.DateTime(timezone=True),
+            server_default=sa.text("now()"),
+            nullable=False,
+        ),
         sa.ForeignKeyConstraint(["created_by"], ["users.id"], ondelete="SET NULL"),
         sa.PrimaryKeyConstraint("id"),
     )
 
     op.create_table(
         "project_api_keys",
-        sa.Column("id", postgresql.UUID(as_uuid=True), nullable=False, default=sa.text("gen_random_uuid()")),
+        sa.Column(
+            "id",
+            postgresql.UUID(as_uuid=True),
+            nullable=False,
+            default=sa.text("gen_random_uuid()"),
+        ),
         sa.Column("project_id", postgresql.UUID(as_uuid=True), nullable=False),
         sa.Column("label", sa.String(255), nullable=False),
         sa.Column("key_hash", sa.String(255), nullable=False),
-        sa.Column("scopes", postgresql.JSONB(astext_type=sa.Text()), nullable=False, server_default="[]"),
-        sa.Column("created_at", sa.DateTime(timezone=True), server_default=sa.text("now()"), nullable=False),
+        sa.Column(
+            "scopes", postgresql.JSONB(astext_type=sa.Text()), nullable=False, server_default="[]"
+        ),
+        sa.Column(
+            "created_at",
+            sa.DateTime(timezone=True),
+            server_default=sa.text("now()"),
+            nullable=False,
+        ),
         sa.Column("revoked_at", sa.DateTime(timezone=True), nullable=True),
         sa.ForeignKeyConstraint(["project_id"], ["projects.id"], ondelete="CASCADE"),
         sa.PrimaryKeyConstraint("id"),
@@ -48,11 +70,15 @@ def upgrade() -> None:
     )
     op.create_index("ix_project_api_keys_project_id", "project_api_keys", ["project_id"])
 
-    op.add_column("crawl_jobs", sa.Column("project_id", postgresql.UUID(as_uuid=True), nullable=True))
+    op.add_column(
+        "crawl_jobs", sa.Column("project_id", postgresql.UUID(as_uuid=True), nullable=True)
+    )
     op.create_foreign_key(
         "fk_crawl_jobs_project_id",
-        "crawl_jobs", "projects",
-        ["project_id"], ["id"],
+        "crawl_jobs",
+        "projects",
+        ["project_id"],
+        ["id"],
         ondelete="SET NULL",
     )
     op.create_index("ix_crawl_jobs_project_id", "crawl_jobs", ["project_id"])

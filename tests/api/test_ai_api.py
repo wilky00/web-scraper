@@ -264,6 +264,9 @@ async def test_chat_passes_history_to_messages(client: AsyncClient, signed_cooki
 
 @pytest.mark.asyncio
 async def test_ai_models_returns_list(client: AsyncClient, signed_cookie: str) -> None:
+    # Force cache miss so the endpoint calls fetch_models instead of returning cached data
+    app.state.redis.get = AsyncMock(return_value=None)
+
     mock_response = MagicMock()
     mock_response.raise_for_status = MagicMock()
     mock_response.json.return_value = {
@@ -275,7 +278,7 @@ async def test_ai_models_returns_list(client: AsyncClient, signed_cookie: str) -
     mock_http.__aexit__ = AsyncMock(return_value=None)
     mock_http.get = AsyncMock(return_value=mock_response)
 
-    with patch("app.api.ai.httpx.AsyncClient", return_value=mock_http):
+    with patch("app.ai.client.httpx.AsyncClient", return_value=mock_http):
         resp = await client.get("/api/ai/models", cookies={SESSION_COOKIE: signed_cookie})
 
     assert resp.status_code == 200
@@ -288,12 +291,15 @@ async def test_ai_models_returns_list(client: AsyncClient, signed_cookie: str) -
 
 @pytest.mark.asyncio
 async def test_ai_models_fallback_on_error(client: AsyncClient, signed_cookie: str) -> None:
+    # Force cache miss so the endpoint calls fetch_models (which will raise)
+    app.state.redis.get = AsyncMock(return_value=None)
+
     mock_http = AsyncMock()
     mock_http.__aenter__ = AsyncMock(return_value=mock_http)
     mock_http.__aexit__ = AsyncMock(return_value=None)
     mock_http.get = AsyncMock(side_effect=Exception("network error"))
 
-    with patch("app.api.ai.httpx.AsyncClient", return_value=mock_http):
+    with patch("app.ai.client.httpx.AsyncClient", return_value=mock_http):
         resp = await client.get("/api/ai/models", cookies={SESSION_COOKIE: signed_cookie})
 
     assert resp.status_code == 200
