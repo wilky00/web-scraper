@@ -52,3 +52,40 @@ Already delivered in Sprint 1.1:
 - httpx DeprecationWarning in API tests (per-request cookies) — tracked, non-blocking
 - Tailwind Play CDN still in use — switch to compiled output before staging deploy
 - `GET /api/criteria/{group_id}/versions` HTMX partial endpoint is wired but not yet called from the editor template (version list is loaded server-side on page load for now)
+
+---
+
+## Criteria Overhaul — Sprint 2.1 — `is_template` column + seeder update
+**Completed:** 2026-05-17
+
+### What was built
+- `app/models/criteria.py` — added `is_template: Mapped[bool]` column (nullable=False, default=False) to CriteriaGroup
+- `migrations/versions/b1c2d3e4f5a6_add_is_template_to_criteria_groups.py` — Alembic migration; `server_default="false"` ensures zero-downtime apply on existing rows; down_revision=a9c69ca6be9b
+- `app/criteria/seed.py` — seeded CriteriaGroup constructor now passes `is_template=True`; all 5 example templates will be flagged on next startup
+- `tests/unit/test_criteria_seed.py` — refactored to capture full CriteriaGroup objects (not just names); asserts `is_template=True` on all seeded groups
+- `pyproject.toml` — added per-file E501 ignore for seed.py (YAML string literals in _TEMPLATES legitimately exceed 100 chars)
+
+### Key decisions
+- `server_default="false"` used in migration instead of a post-migrate UPDATE — safer for zero-downtime deploys; staging backfill SQL provided separately
+- Delete endpoint (Sprint 2.2) will return 422 if `is_template=True` — prevents accidental loss of seeded templates
+- `pyproject.toml` per-file-ignore is the right fix for E501 inside Python string literals where `# noqa` is impossible without corrupting the string content
+
+### Test results
+572/572 unit tests green | ruff clean
+
+### Staging backfill required
+After applying migration `b1c2d3e4f5a6` on staging, run:
+```sql
+UPDATE criteria_groups SET is_template = true
+WHERE name IN (
+  'social-only-businesses-nashville',
+  'nashville-barbershops-legacy-html',
+  'restaurants-missing-contact-info',
+  'local-shops-http-only',
+  'nashville-gyms-without-online-booking'
+);
+```
+(The seeder will set this on new installs, but existing staging rows got `server_default=false`.)
+
+### Open issues / follow-ups
+- None; clean sprint
