@@ -26,6 +26,7 @@ class AIConfig(BaseModel):
     model: str = "anthropic/claude-3-5-sonnet"
     max_tokens: int = Field(4096, ge=256, le=32000)
     temperature: float = Field(0.3, ge=0.0, le=2.0)
+    models: list[str] = Field(default_factory=list)
     skills: AISkillsConfig = Field(default_factory=AISkillsConfig)
 
 

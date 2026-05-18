@@ -8,6 +8,14 @@ model: "anthropic/claude-3-5-sonnet"
 max_tokens: 4096
 temperature: 0.3
 
+# Explicit model allowlist — only these models appear in the UI dropdown.
+# When set, the provider's /models endpoint is never called.
+# Leave empty ([]) to fetch all models from the provider automatically.
+models:
+  - "anthropic/claude-3-5-sonnet"
+  - "anthropic/claude-3-haiku"
+  - "openai/gpt-4o"
+
 # Skills available to the AI assistant
 skills:
   criteria_creation: true

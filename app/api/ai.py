@@ -63,6 +63,11 @@ async def ai_models(
     if ai_config is None:
         return JSONResponse({"error": "AI Assist is not configured"}, status_code=503)
 
+    # If models are explicitly configured, return them directly — skip provider fetch.
+    if ai_config.models:
+        default = ai_config.model if ai_config.model in ai_config.models else ai_config.models[0]
+        return JSONResponse({"models": ai_config.models, "default": default})
+
     settings: Settings = request.app.state.settings
     url = ai_config.base_url.rstrip("/") + "/models"
     headers = {"Authorization": f"Bearer {settings.ai_api_key}"}
