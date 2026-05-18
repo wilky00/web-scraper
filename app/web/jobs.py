@@ -11,9 +11,11 @@ from fastapi.responses import HTMLResponse, Response
 from fastapi.templating import Jinja2Templates
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import aliased
 
 from app.auth.permissions import require_operator
 from app.auth.session import SESSION_COOKIE, get_session
+from app.config.models import CrawlConfig
 from app.models.connector import Connector
 from app.models.criteria import CriteriaGroup, CriteriaVersion
 from app.models.job import CrawlJob, CrawlJobEvent
@@ -35,6 +37,85 @@ async def _get_csrf(request: Request, session_cookie: str | None) -> str:
     if session_data is None:
         return ""
     return session_data.get("csrf_token", "")
+
+
+@router.get("/jobs/new", response_class=HTMLResponse)
+async def new_job_form(
+    request: Request,
+    user: User = Depends(require_operator),
+) -> Response:
+    session_cookie = request.cookies.get(SESSION_COOKIE)
+    csrf_token = await _get_csrf(request, session_cookie)
+
+    async with AsyncSession(request.app.state.engine) as db:
+        # Active connectors
+        conn_result = await db.execute(
+            select(Connector).where(Connector.enabled).order_by(Connector.name)
+        )
+        connectors = [
+            {"id": str(c.id), "name": c.name, "connector_type": c.connector_type}
+            for c in conn_result.scalars()
+        ]
+
+        # Latest active version per criteria group
+        # Subquery: max version number per group among active versions
+        max_ver_subq = (
+            select(
+                CriteriaVersion.group_id,
+                func.max(CriteriaVersion.version).label("max_version"),
+            )
+            .where(CriteriaVersion.is_active)
+            .group_by(CriteriaVersion.group_id)
+            .subquery()
+        )
+        cv_alias = aliased(CriteriaVersion)
+        latest_result = await db.execute(
+            select(cv_alias).join(
+                max_ver_subq,
+                (cv_alias.group_id == max_ver_subq.c.group_id)
+                & (cv_alias.version == max_ver_subq.c.max_version),
+            )
+        )
+        latest_versions: dict[str, str] = {
+            str(v.group_id): str(v.id) for v in latest_result.scalars()
+        }
+
+        groups_result = await db.execute(
+            select(CriteriaGroup)
+            .where(CriteriaGroup.is_active)
+            .order_by(CriteriaGroup.display_name)
+        )
+        criteria_groups = [
+            {
+                "id": str(g.id),
+                "display_name": g.display_name,
+                "description": g.description or "",
+                "tags": g.tags or [],
+                "latest_version_id": latest_versions.get(str(g.id), ""),
+            }
+            for g in groups_result.scalars()
+            if str(g.id) in latest_versions
+        ]
+
+    # Default crawl config values for the form
+    app_crawl: CrawlConfig = request.app.state.config.crawl
+    default_config = {
+        "max_pages_per_job": app_crawl.max_pages_per_job,
+        "delay_between_requests_ms": app_crawl.delay_between_requests_ms,
+        "max_depth": app_crawl.max_depth,
+    }
+
+    return templates.TemplateResponse(
+        request,
+        "jobs/new.html",
+        {
+            "connectors": connectors,
+            "criteria_groups": criteria_groups,
+            "default_config": default_config,
+            "csrf_token": csrf_token,
+            "user": user,
+        },
+    )
 
 
 @router.get("/jobs", response_class=HTMLResponse)

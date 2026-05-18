@@ -1,0 +1,470 @@
+{% extends "base.html" %}
+{% block title %}New Job — Web Scraper{% endblock %}
+{% block head %}
+<script>
+var _templateData = {{ criteria_groups | tojson }};
+</script>
+{% endblock %}
+{% block content %}
+<div class="min-h-screen p-8"
+     @select-template="selectTemplate($event.detail)"
+     x-data="{
+         selectedGroupId: null,
+         selectedVersionId: null,
+         selectedGroupName: null,
+         selectedGroupDescription: '',
+         connectorId: '',
+         maxPages: {{ default_config.max_pages_per_job }},
+         delayMs: {{ default_config.delay_between_requests_ms }},
+         maxDepth: {{ default_config.max_depth }},
+         submitting: false,
+         submitError: null,
+         testing: false,
+         testStatus: null,
+         testResults: [],
+         testError: null,
+
+         selectTemplate(t) {
+             this.selectedGroupId = t.id;
+             this.selectedVersionId = t.latest_version_id;
+             this.selectedGroupName = t.display_name;
+             this.selectedGroupDescription = t.description;
+         },
+
+         canSubmit() {
+             return this.connectorId && this.selectedVersionId && !this.submitting;
+         },
+
+         async submitJob(csrfToken) {
+             if (!this.canSubmit()) return;
+             this.submitting = true;
+             this.submitError = null;
+             try {
+                 const resp = await fetch('/api/jobs', {
+                     method: 'POST',
+                     headers: { 'Content-Type': 'application/json' },
+                     body: JSON.stringify({
+                         connector_id: this.connectorId,
+                         criteria_version_id: this.selectedVersionId,
+                         config: {
+                             max_pages_per_job: parseInt(this.maxPages),
+                             delay_between_requests_ms: parseInt(this.delayMs),
+                             max_depth: parseInt(this.maxDepth)
+                         }
+                     })
+                 });
+                 const data = await resp.json();
+                 if (resp.ok) {
+                     window.location.href = '/jobs/' + data.job_id;
+                 } else {
+                     this.submitError = data.error || 'An unexpected error occurred.';
+                     this.submitting = false;
+                 }
+             } catch (e) {
+                 this.submitError = 'Network error — please try again.';
+                 this.submitting = false;
+             }
+         },
+
+         async startTest() {
+             if (!this.connectorId || !this.selectedVersionId) return;
+             this.testing = true;
+             this.testStatus = 'queued';
+             this.testResults = [];
+             this.testError = null;
+             try {
+                 const resp = await fetch('/api/jobs/test', {
+                     method: 'POST',
+                     headers: { 'Content-Type': 'application/json' },
+                     body: JSON.stringify({
+                         connector_id: this.connectorId,
+                         criteria_version_id: this.selectedVersionId,
+                         config: {
+                             delay_between_requests_ms: parseInt(this.delayMs),
+                             max_depth: parseInt(this.maxDepth)
+                         }
+                     })
+                 });
+                 const data = await resp.json();
+                 if (!resp.ok) {
+                     this.testError = data.error || 'Failed to start test run.';
+                     this.testing = false;
+                     return;
+                 }
+                 this._testId = data.test_id;
+                 this.pollTest();
+             } catch (e) {
+                 this.testError = 'Network error — please try again.';
+                 this.testing = false;
+             }
+         },
+
+         async pollTest() {
+             if (!this._testId) return;
+             try {
+                 const resp = await fetch('/api/jobs/test/' + this._testId);
+                 if (!resp.ok) {
+                     this.testError = 'Test run expired or not found.';
+                     this.testing = false;
+                     return;
+                 }
+                 const data = await resp.json();
+                 this.testStatus = data.status;
+                 if (data.status === 'done') {
+                     this.testResults = data.results || [];
+                     this.testing = false;
+                 } else if (data.status === 'error') {
+                     this.testError = data.error || 'Test run failed.';
+                     this.testing = false;
+                 } else {
+                     setTimeout(() => this.pollTest(), 2000);
+                 }
+             } catch (e) {
+                 this.testError = 'Network error while polling.';
+                 this.testing = false;
+             }
+         }
+     }">
+    <div class="mx-auto max-w-6xl">
+
+        <!-- Breadcrumb + header -->
+        <div class="mb-6">
+            <div class="flex items-center gap-2 text-sm text-gray-500 dark:text-gray-400 mb-2">
+                <a href="/jobs" class="hover:text-blue-600 dark:hover:text-blue-400">Jobs</a>
+                <span>›</span>
+                <span class="text-gray-700 dark:text-gray-300">New Job</span>
+            </div>
+            <h1 class="text-2xl font-semibold tracking-tight text-gray-900 dark:text-gray-100">New Job</h1>
+            <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">Select a template, configure options, then run or test the crawl.</p>
+        </div>
+
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+
+            <!-- ── Left column: form ─────────────────────────────────────────── -->
+            <div class="lg:col-span-2 space-y-5">
+
+                <!-- Connector -->
+                <div class="rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 shadow-sm p-5">
+                    <h2 class="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3">Connector</h2>
+                    {% if connectors %}
+                    <select
+                        x-model="connectorId"
+                        class="block w-full rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 px-3 py-2 text-sm text-gray-700 dark:text-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        aria-label="Select connector"
+                    >
+                        <option value="">Select a connector…</option>
+                        {% for c in connectors %}
+                        <option value="{{ c.id }}">{{ c.name }} ({{ c.connector_type }})</option>
+                        {% endfor %}
+                    </select>
+                    {% else %}
+                    <p class="text-sm text-gray-400 dark:text-gray-500">No active connectors configured. Add one in <a href="/settings" class="text-blue-600 dark:text-blue-400 hover:underline">Settings</a>.</p>
+                    {% endif %}
+                </div>
+
+                <!-- Selected template -->
+                <div class="rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 shadow-sm p-5">
+                    <h2 class="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3">Template</h2>
+                    <div x-show="!selectedGroupId" class="text-sm text-gray-400 dark:text-gray-500">
+                        Select a template from the panel on the right.
+                    </div>
+                    <div x-show="selectedGroupId" x-cloak>
+                        <p class="text-sm font-medium text-gray-900 dark:text-gray-100" x-text="selectedGroupName"></p>
+                        <div class="mt-2">
+                            <p x-show="selectedGroupDescription"
+                               class="text-sm text-gray-500 dark:text-gray-400 leading-relaxed"
+                               x-text="selectedGroupDescription"></p>
+                            <p x-show="!selectedGroupDescription"
+                               class="text-sm text-gray-400 dark:text-gray-500 italic">No description provided for this template.</p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Config overrides -->
+                <div class="rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 shadow-sm p-5">
+                    <h2 class="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-4">Crawl Options</h2>
+                    <div class="space-y-5">
+
+                        <!-- Max sites -->
+                        <div>
+                            <div class="flex items-center justify-between mb-1">
+                                <label for="max-pages" class="text-sm font-medium text-gray-700 dark:text-gray-300">Max sites</label>
+                                <span class="text-xs text-gray-400 dark:text-gray-500" x-text="maxPages + ' sites'"></span>
+                            </div>
+                            <input
+                                id="max-pages"
+                                type="number"
+                                x-model="maxPages"
+                                min="1"
+                                max="10000"
+                                class="block w-full rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 px-3 py-2 text-sm text-gray-700 dark:text-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                aria-describedby="max-pages-hint"
+                            >
+                            <p id="max-pages-hint" class="mt-1 text-xs text-gray-400 dark:text-gray-500">Maximum number of sites to crawl in this job.</p>
+                        </div>
+
+                        <!-- Request delay -->
+                        <div>
+                            <div class="flex items-center justify-between mb-1">
+                                <label for="delay-ms" class="text-sm font-medium text-gray-700 dark:text-gray-300">Request delay</label>
+                                <span class="text-xs text-gray-400 dark:text-gray-500" x-text="delayMs + ' ms'"></span>
+                            </div>
+                            <input
+                                id="delay-ms"
+                                type="number"
+                                x-model="delayMs"
+                                min="0"
+                                max="30000"
+                                step="100"
+                                class="block w-full rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 px-3 py-2 text-sm text-gray-700 dark:text-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                aria-describedby="delay-ms-hint"
+                            >
+                            <p id="delay-ms-hint" class="mt-1 text-xs text-gray-400 dark:text-gray-500">Pause between each request in milliseconds. Higher values are more polite to target servers.</p>
+                        </div>
+
+                        <!-- Crawl depth -->
+                        <div>
+                            <div class="flex items-center justify-between mb-1">
+                                <label for="max-depth" class="text-sm font-medium text-gray-700 dark:text-gray-300">Crawl depth</label>
+                                <span class="text-xs font-medium text-gray-600 dark:text-gray-300" x-text="maxDepth"></span>
+                            </div>
+                            <input
+                                id="max-depth"
+                                type="range"
+                                x-model="maxDepth"
+                                min="1"
+                                max="5"
+                                step="1"
+                                class="block w-full accent-blue-600"
+                                aria-describedby="max-depth-hint"
+                            >
+                            <div class="flex justify-between text-xs text-gray-400 dark:text-gray-500 mt-0.5">
+                                <span>Shallow (1)</span>
+                                <span>Deep (5)</span>
+                            </div>
+                            <p id="max-depth-hint" class="mt-1 text-xs text-gray-400 dark:text-gray-500">How many link-hops to follow from each discovered site.</p>
+                        </div>
+
+                    </div>
+                </div>
+
+                <!-- Schedule placeholder -->
+                <div class="rounded-lg border border-dashed border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 shadow-sm p-5 opacity-60">
+                    <div class="flex items-center justify-between">
+                        <div>
+                            <h2 class="text-sm font-semibold text-gray-500 dark:text-gray-500">Recurring Schedule</h2>
+                            <p class="text-xs text-gray-400 dark:text-gray-500 mt-0.5">Coming soon — run this job on a cron schedule.</p>
+                        </div>
+                        <span class="text-xs font-medium text-gray-400 dark:text-gray-500 bg-gray-100 dark:bg-gray-700 rounded-full px-2.5 py-0.5">Soon</span>
+                    </div>
+                </div>
+
+                <!-- Submit error -->
+                <div x-show="submitError" x-cloak
+                     class="rounded-md bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 p-4">
+                    <p class="text-sm text-red-700 dark:text-red-400" x-text="submitError"></p>
+                </div>
+
+                <!-- Action buttons -->
+                <div class="flex items-center gap-3">
+                    <button
+                        type="button"
+                        @click="submitJob('{{ csrf_token }}')"
+                        :disabled="!canSubmit()"
+                        :class="canSubmit()
+                            ? 'bg-blue-600 hover:bg-blue-700 text-white cursor-pointer'
+                            : 'bg-blue-300 dark:bg-blue-900 text-white cursor-not-allowed'"
+                        class="rounded-md px-4 py-2 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-blue-500 transition-colors"
+                        aria-label="Run crawl job"
+                    >
+                        <span x-show="!submitting">Run Job</span>
+                        <span x-show="submitting" class="flex items-center gap-2">
+                            <svg class="animate-spin h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" aria-hidden="true">
+                                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
+                            </svg>
+                            Starting…
+                        </span>
+                    </button>
+
+                    <button
+                        type="button"
+                        @click="startTest()"
+                        :disabled="!connectorId || !selectedVersionId || testing"
+                        :class="(connectorId && selectedVersionId && !testing)
+                            ? 'border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 cursor-pointer'
+                            : 'border-gray-200 dark:border-gray-700 text-gray-400 dark:text-gray-600 cursor-not-allowed'"
+                        class="rounded-md border bg-white dark:bg-gray-800 px-4 py-2 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-blue-500 transition-colors"
+                        aria-label="Test template with 3 sites"
+                    >
+                        <span x-show="!testing">Test Run (3 sites)</span>
+                        <span x-show="testing" class="flex items-center gap-2">
+                            <svg class="animate-spin h-4 w-4 text-gray-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" aria-hidden="true">
+                                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
+                            </svg>
+                            <span x-text="testStatus === 'queued' ? 'Queued…' : 'Testing…'"></span>
+                        </span>
+                    </button>
+                </div>
+
+                <!-- ── Test results panel ──────────────────────────────────────── -->
+                <div x-show="testStatus !== null" x-cloak x-transition>
+                    <div class="rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 shadow-sm overflow-hidden">
+                        <div class="px-5 py-3 border-b border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900/50 flex items-center justify-between">
+                            <h2 class="text-sm font-semibold text-gray-700 dark:text-gray-300">Test Results</h2>
+                            <span class="text-xs text-gray-400 dark:text-gray-500">Not saved — for preview only</span>
+                        </div>
+
+                        <!-- Running state -->
+                        <div x-show="testing" class="px-5 py-6 flex items-center gap-3">
+                            <svg class="animate-spin h-5 w-5 text-blue-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" aria-hidden="true">
+                                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
+                            </svg>
+                            <span class="text-sm text-gray-500 dark:text-gray-400" x-text="testStatus === 'queued' ? 'Waiting in queue…' : 'Crawling up to 3 sites…'"></span>
+                        </div>
+
+                        <!-- Error state -->
+                        <div x-show="testError && !testing" class="px-5 py-4">
+                            <div class="rounded-md bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 p-3">
+                                <p class="text-sm text-red-700 dark:text-red-400" x-text="testError"></p>
+                            </div>
+                        </div>
+
+                        <!-- Results table -->
+                        <div x-show="testResults.length > 0 && !testing" class="overflow-x-auto">
+                            <table class="min-w-full divide-y divide-gray-200 dark:divide-gray-700 text-sm">
+                                <thead class="bg-gray-50 dark:bg-gray-800">
+                                    <tr>
+                                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Name</th>
+                                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Website</th>
+                                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Phone</th>
+                                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Email</th>
+                                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Address</th>
+                                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Score</th>
+                                    </tr>
+                                </thead>
+                                <tbody class="bg-white dark:bg-gray-900 divide-y divide-gray-100 dark:divide-gray-800">
+                                    <template x-for="(r, i) in testResults" :key="i">
+                                        <tr class="hover:bg-gray-50 dark:hover:bg-gray-800/50">
+                                            <td class="px-4 py-3 text-gray-900 dark:text-gray-100 font-medium" x-text="r.name || '—'"></td>
+                                            <td class="px-4 py-3">
+                                                <a x-show="r.website"
+                                                   :href="r.website"
+                                                   x-text="r.website"
+                                                   target="_blank"
+                                                   rel="noopener noreferrer"
+                                                   class="text-blue-600 dark:text-blue-400 hover:underline text-xs truncate block max-w-[160px]"
+                                                   :title="r.website"></a>
+                                                <span x-show="!r.website" class="text-gray-400 dark:text-gray-500">—</span>
+                                            </td>
+                                            <td class="px-4 py-3 text-gray-600 dark:text-gray-400 text-xs" x-text="r.phone || '—'"></td>
+                                            <td class="px-4 py-3 text-gray-600 dark:text-gray-400 text-xs truncate max-w-[140px]" x-text="r.email || '—'" :title="r.email"></td>
+                                            <td class="px-4 py-3 text-gray-600 dark:text-gray-400 text-xs" x-text="r.address || '—'"></td>
+                                            <td class="px-4 py-3">
+                                                <span class="inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium"
+                                                      :class="r.match_score >= 80
+                                                          ? 'bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-300'
+                                                          : r.match_score >= 50
+                                                              ? 'bg-yellow-100 dark:bg-yellow-900/30 text-yellow-800 dark:text-yellow-300'
+                                                              : 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400'"
+                                                      x-text="r.match_score.toFixed(1) + '%'">
+                                                </span>
+                                            </td>
+                                        </tr>
+                                    </template>
+                                </tbody>
+                            </table>
+                        </div>
+
+                        <!-- Empty results -->
+                        <div x-show="!testing && testResults.length === 0 && !testError" class="px-5 py-6 text-center">
+                            <p class="text-sm text-gray-400 dark:text-gray-500">No results returned. The connector may not have found any matching records.</p>
+                        </div>
+                    </div>
+                </div>
+
+            </div><!-- /left column -->
+
+            <!-- ── Right column: template picker ────────────────────────────── -->
+            <div class="space-y-4">
+                <div class="rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 shadow-sm overflow-hidden"
+                     x-data="{
+                         open: true,
+                         search: '',
+                         templates: (typeof _templateData !== 'undefined' ? _templateData : []),
+                         filtered() {
+                             if (!this.search) return this.templates;
+                             var q = this.search.toLowerCase();
+                             return this.templates.filter(function(t) {
+                                 return ((t.display_name || '') + ' ' + (t.description || '') + ' ' + (t.tags || []).join(' ')).toLowerCase().indexOf(q) !== -1;
+                             });
+                         }
+                     }">
+                    <div class="px-4 py-3 border-b border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900/50 cursor-pointer select-none flex items-center justify-between"
+                         @click="open = !open">
+                        <h2 class="text-sm font-semibold text-gray-700 dark:text-gray-300">
+                            Templates
+                            {% if criteria_groups %}<span class="ml-1.5 text-xs font-normal text-gray-400 dark:text-gray-500">({{ criteria_groups|length }})</span>{% endif %}
+                        </h2>
+                        <svg xmlns="http://www.w3.org/2000/svg"
+                             class="h-4 w-4 text-gray-400 transition-transform duration-150"
+                             :class="open ? 'rotate-180' : ''"
+                             fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/>
+                        </svg>
+                    </div>
+                    <div x-show="open" x-transition>
+                        {% if criteria_groups %}
+                        <div class="px-3 py-2 border-b border-gray-100 dark:border-gray-700/50">
+                            <input type="text" x-model="search" placeholder="Search templates…"
+                                   class="w-full rounded border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900 px-2 py-1 text-xs text-gray-700 dark:text-gray-300 placeholder-gray-400 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                                   aria-label="Search templates" />
+                        </div>
+                        <ul class="divide-y divide-gray-100 dark:divide-gray-700/50 max-h-96 overflow-y-auto" role="listbox" aria-label="Criteria templates">
+                            <template x-for="t in filtered()" :key="t.id">
+                                <li class="px-3 py-2.5">
+                                    <div class="flex items-start justify-between gap-2">
+                                        <div class="min-w-0">
+                                            <p class="text-xs font-medium text-gray-800 dark:text-gray-200 leading-tight truncate"
+                                               x-text="t.display_name"></p>
+                                            <p class="mt-0.5 text-xs text-gray-400 dark:text-gray-500 line-clamp-2 leading-tight"
+                                               x-show="t.description"
+                                               x-text="t.description && t.description.length > 120 ? t.description.substring(0, 120) + '…' : t.description"></p>
+                                        </div>
+                                        <button type="button"
+                                                @click="$dispatch('select-template', t)"
+                                                class="flex-shrink-0 text-xs font-medium text-blue-600 dark:text-blue-400 hover:underline whitespace-nowrap"
+                                                :aria-label="'Select template ' + t.display_name">
+                                            Select
+                                        </button>
+                                    </div>
+                                </li>
+                            </template>
+                            <li x-show="filtered().length === 0" class="px-3 py-4 text-center" role="option" aria-disabled="true">
+                                <p class="text-xs text-gray-400 dark:text-gray-500">No matching templates.</p>
+                            </li>
+                        </ul>
+                        {% else %}
+                        <div class="px-4 py-6 text-center">
+                            <p class="text-xs text-gray-400 dark:text-gray-500">No criteria templates yet.</p>
+                            <p class="mt-1 text-xs text-gray-400 dark:text-gray-500">
+                                <a href="/criteria/new" class="text-blue-600 dark:text-blue-400 hover:underline">Create one</a> to get started.
+                            </p>
+                        </div>
+                        {% endif %}
+                    </div>
+                </div>
+
+                <!-- Help card -->
+                <div class="rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 shadow-sm p-4">
+                    <h3 class="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-2">About Test Runs</h3>
+                    <p class="text-xs text-gray-500 dark:text-gray-400 leading-relaxed">Test runs crawl up to 3 sites and display the extracted fields and match score. Results are not saved — use this to verify a template returns the expected data before launching a full job.</p>
+                </div>
+            </div><!-- /right column -->
+
+        </div><!-- /grid -->
+    </div><!-- /max-w -->
+</div>
+{% endblock %}

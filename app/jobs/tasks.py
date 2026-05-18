@@ -4,12 +4,14 @@ from __future__ import annotations
 
 import asyncio
 import uuid
+from typing import Any
 
 import structlog
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
 
 from app.config.criteria import CriteriaConfig
 from app.config.loader import load_all_configs
+from app.config.models import CrawlConfig
 from app.connectors.registry import ConnectorRegistry
 from app.jobs.orchestrator import run_job
 from app.models.connector import Connector
@@ -66,13 +68,22 @@ async def _async_main(job_id_str: str) -> None:
 
             criteria = CriteriaConfig.model_validate(criteria_version.config_snapshot)
 
-            async with PageFetcher(configs.crawl) as fetcher:
+            # Apply per-job crawl overrides stored at job creation time
+            crawl_config: CrawlConfig = configs.crawl
+            overrides: dict[str, Any] = (job.config_snapshot or {}).get("crawl_overrides", {})
+            if overrides:
+                allowed = {"max_pages_per_job", "delay_between_requests_ms", "max_depth"}
+                filtered = {k: v for k, v in overrides.items() if k in allowed}
+                if filtered:
+                    crawl_config = crawl_config.model_copy(update=filtered)
+
+            async with PageFetcher(crawl_config) as fetcher:
                 await run_job(
                     job_id,
                     session,
                     connector=connector,
                     criteria=criteria,
-                    crawl_config=configs.crawl,
+                    crawl_config=crawl_config,
                     fetcher=fetcher,
                     settings=settings,
                 )

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import json
 import secrets
 import uuid
 from typing import Any
@@ -28,12 +29,40 @@ logger = structlog.get_logger(__name__)
 router = APIRouter()
 
 
+_TEST_REDIS_TTL = 900  # 15 minutes
+_CRAWL_OVERRIDE_KEYS = {"max_pages_per_job", "delay_between_requests_ms", "max_depth"}
+
+
 def _enqueue_rq(redis_url: str, job_id: uuid.UUID) -> str:
     """Enqueue run_crawl_job on the default RQ queue. Sync — call via asyncio.to_thread."""
     conn = redis.from_url(redis_url)
     try:
         q = Queue(connection=conn)
         rq_job = q.enqueue("app.jobs.tasks.run_crawl_job", str(job_id))
+        return rq_job.id
+    finally:
+        conn.close()
+
+
+def _enqueue_test_rq(
+    redis_url: str,
+    test_id: str,
+    criteria_version_id: str,
+    connector_id: str,
+    config_overrides: dict[str, Any],
+) -> str:
+    """Enqueue run_test_job on the default RQ queue with a 90-second timeout."""
+    conn = redis.from_url(redis_url)
+    try:
+        q = Queue(connection=conn)
+        rq_job = q.enqueue(
+            "app.jobs.test_runner.run_test_job",
+            test_id,
+            criteria_version_id,
+            connector_id,
+            config_overrides,
+            job_timeout=90,
+        )
         return rq_job.id
     finally:
         conn.close()
@@ -59,6 +88,16 @@ async def create_job(
     except ValueError:
         return JSONResponse({"error": "Invalid UUID format"}, status_code=422)
 
+    # Extract and validate optional crawl config overrides
+    raw_config: dict[str, Any] = body.get("config") or {}
+    crawl_overrides: dict[str, Any] = {}
+    for key in _CRAWL_OVERRIDE_KEYS:
+        if key in raw_config:
+            try:
+                crawl_overrides[key] = int(raw_config[key])
+            except (TypeError, ValueError):
+                return JSONResponse({"error": f"config.{key} must be an integer"}, status_code=422)
+
     async with AsyncSession(request.app.state.engine) as db:
         connector: Connector | None = await db.get(Connector, connector_id)
         if connector is None:
@@ -70,14 +109,18 @@ async def create_job(
         if criteria_version is None:
             return JSONResponse({"error": "CriteriaVersion not found"}, status_code=404)
 
+        config_snapshot: dict[str, Any] = {
+            "criteria": criteria_version.config_snapshot,
+            "connector": connector.config_snapshot,
+        }
+        if crawl_overrides:
+            config_snapshot["crawl_overrides"] = crawl_overrides
+
         crawl_job = CrawlJob(
             connector_id=connector_id,
             criteria_version_id=criteria_version_id,
             status="queued",
-            config_snapshot={
-                "criteria": criteria_version.config_snapshot,
-                "connector": connector.config_snapshot,
-            },
+            config_snapshot=config_snapshot,
             created_by=user.id,
         )
         db.add(crawl_job)
@@ -250,3 +293,84 @@ async def resume_job(
         logger.error("job.resume_enqueue_failed", job_id=job_id, error=str(exc))
 
     return Response(status_code=200, headers={"HX-Redirect": f"/jobs/{job_id}"})
+
+
+# ── Test run endpoints ────────────────────────────────────────────────────────
+
+
+@router.post("/api/jobs/test", status_code=202)
+async def create_test_run(
+    request: Request,
+    user: User = Depends(require_operator),
+) -> JSONResponse:
+    """Start an ephemeral 3-result test crawl. Results are stored in Redis for 15 minutes."""
+    body: dict[str, Any] = await request.json()
+    connector_id_str = body.get("connector_id")
+    criteria_version_id_str = body.get("criteria_version_id")
+
+    if not connector_id_str or not criteria_version_id_str:
+        return JSONResponse(
+            {"error": "connector_id and criteria_version_id are required"}, status_code=422
+        )
+
+    try:
+        uuid.UUID(connector_id_str)
+        uuid.UUID(criteria_version_id_str)
+    except ValueError:
+        return JSONResponse({"error": "Invalid UUID format"}, status_code=422)
+
+    raw_config: dict[str, Any] = body.get("config") or {}
+    config_overrides: dict[str, Any] = {}
+    for key in _CRAWL_OVERRIDE_KEYS:
+        if key in raw_config:
+            try:
+                config_overrides[key] = int(raw_config[key])
+            except (TypeError, ValueError):
+                return JSONResponse({"error": f"config.{key} must be an integer"}, status_code=422)
+
+    test_id = str(uuid.uuid4())
+    r = request.app.state.redis
+    await r.set(
+        f"test:{test_id}",
+        json.dumps({"status": "queued", "results": [], "error": None}),
+        ex=_TEST_REDIS_TTL,
+    )
+
+    settings: Settings = request.app.state.settings
+    try:
+        await asyncio.to_thread(
+            _enqueue_test_rq,
+            settings.redis_url,
+            test_id,
+            criteria_version_id_str,
+            connector_id_str,
+            config_overrides,
+        )
+        logger.info("test_run.enqueued", test_id=test_id)
+    except Exception as exc:
+        logger.error("test_run.enqueue_failed", test_id=test_id, error=str(exc))
+        return JSONResponse(
+            {"error": "Failed to enqueue test run — RQ unavailable"}, status_code=503
+        )
+
+    return JSONResponse({"test_id": test_id, "status": "queued"}, status_code=202)
+
+
+@router.get("/api/jobs/test/{test_id}")
+async def get_test_run(
+    test_id: str,
+    request: Request,
+    user: User = Depends(require_operator),
+) -> JSONResponse:
+    """Poll for the status and results of an ephemeral test run."""
+    r = request.app.state.redis
+    raw = await r.get(f"test:{test_id}")
+    if raw is None:
+        return JSONResponse({"error": "Test run not found or expired"}, status_code=404)
+
+    try:
+        data = json.loads(raw)
+    except (ValueError, TypeError):
+        return JSONResponse({"error": "Corrupted test run state"}, status_code=500)
+
+    return JSONResponse(data)
