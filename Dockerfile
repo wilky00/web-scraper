@@ -16,7 +16,8 @@ WORKDIR /app
 COPY pyproject.toml uv.lock* ./
 RUN uv pip install --system --no-cache .
 
-# Install Playwright browsers + system dependencies (requires root)
+# Install Playwright browsers to a fixed path so appuser can find them at runtime
+ENV PLAYWRIGHT_BROWSERS_PATH=/opt/playwright-browsers
 RUN playwright install --with-deps chromium
 
 COPY app/ ./app/
