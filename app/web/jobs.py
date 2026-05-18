@@ -318,8 +318,14 @@ async def job_events_partial(
         return HTMLResponse("", status_code=404)
 
     _, job_data, events_data = result
-    return templates.TemplateResponse(
+    response = templates.TemplateResponse(
         request,
         "jobs/_events_poll.html",
         {"job": job_data, "events": events_data},
     )
+    # When the job reaches a terminal state, tell HTMX to reload the full
+    # page so the status badge and record count update outside the poll div.
+    _terminal = {"completed", "completed_with_errors", "failed", "cancelled"}
+    if str(job_data["status"]) in _terminal:
+        response.headers["HX-Refresh"] = "true"
+    return response
