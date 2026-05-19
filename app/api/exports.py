@@ -89,8 +89,9 @@ async def create_export(
             status="pending",
         )
         db.add(export)
+        await db.flush()
+        export_id = export.id  # capture before commit — post-commit access triggers lazy reload
         await db.commit()
-        export_id = export.id
 
     settings: Settings = request.app.state.settings
     await asyncio.to_thread(_enqueue_export, settings.redis_url, export_id)
