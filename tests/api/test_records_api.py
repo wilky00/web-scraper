@@ -294,7 +294,7 @@ async def test_record_edit_partial_renders(
         _clear_state()
 
     assert resp.status_code == 200
-    assert "hx-post" in resp.text
+    assert "fetch(" in resp.text  # Alpine.js fetch replaces hx-post
     assert "Save" in resp.text
     assert "Test Business" in resp.text
 
