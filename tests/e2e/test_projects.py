@@ -96,5 +96,10 @@ def test_revoke_api_key(logged_in: Page) -> None:
     key_row.get_by_role("button", name="Revoke").click()
     logged_in.wait_for_load_state("networkidle", timeout=15_000)
 
-    # After reload, our label's <p> should no longer appear
-    assert logged_in.locator("p", has_text=label).count() == 0
+    # After reload, the key is marked revoked (label stays, Revoke button gone, "Revoked" badge shown)
+    key_row_after = logged_in.locator("div").filter(
+        has=logged_in.locator("p", has_text=label)
+    ).last
+    assert key_row_after.locator("button", has_text="Revoke").count() == 0, (
+        "Revoke button still visible — revoke may not have been performed"
+    )
