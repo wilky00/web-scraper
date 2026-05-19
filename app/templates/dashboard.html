@@ -163,7 +163,7 @@
                         } %}
                         <tr class="hover:bg-gray-50 dark:hover:bg-gray-800/50">
                             <td class="px-4 py-3">
-                                <a href="/jobs/{{ job.id }}" class="font-mono text-xs text-blue-600 dark:text-blue-400 hover:underline">{{ str(job.id)[:8] }}&hellip;</a>
+                                <a href="/jobs/{{ job.id }}" class="font-mono text-xs text-blue-600 dark:text-blue-400 hover:underline">{{ (job.id | string)[:8] }}&hellip;</a>
                             </td>
                             <td class="px-4 py-3 text-gray-700 dark:text-gray-300">{{ connector_names.get(job.connector_id, '—') }}</td>
                             <td class="px-4 py-3 text-gray-700 dark:text-gray-300">{{ criteria_names.get(job.criteria_version_id, '—') }}</td>
