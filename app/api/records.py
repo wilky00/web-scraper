@@ -112,17 +112,17 @@ async def create_record(
         )
         db.add(record)
         await db.flush()
+        record_id = record.id  # capture before commit — post-commit access triggers lazy reload
 
         audit = RecordAuditLog(
             user_id=user.id,
             action="create",
             resource_type="business_record",
-            resource_id=str(record.id),
+            resource_id=str(record_id),
             diff={"name": record_name, "source": "manual"},
         )
         db.add(audit)
         await db.commit()
-        record_id = record.id
 
     logger.info("record.created", record_id=str(record_id), user_id=str(user.id))
     return Response(status_code=201, headers={"HX-Redirect": f"/records/{record_id}"})
