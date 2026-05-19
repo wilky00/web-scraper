@@ -99,10 +99,13 @@ document.addEventListener('alpine:init', () => {
         },
     }));
 });
+// JSON in HTML attributes breaks at the first " character — use JS vars instead.
+var _criteriaGroups = {{ groups | tojson }};
+var _criteriaProjects = {{ projects | tojson }};
 </script>
 {% endblock %}
 {% block content %}
-<div class="min-h-screen p-8" x-data="criteriaList({{ groups | tojson }}, '{{ csrf_token }}', {{ projects | tojson }})">
+<div class="min-h-screen p-8" x-data="criteriaList(typeof _criteriaGroups !== 'undefined' ? _criteriaGroups : [], '{{ csrf_token }}', typeof _criteriaProjects !== 'undefined' ? _criteriaProjects : [])">
     <div class="mx-auto max-w-6xl">
 
         <!-- Header -->
