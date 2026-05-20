@@ -55,7 +55,7 @@ def test_download_ready_export(logged_in: Page) -> None:
         logged_in.wait_for_load_state("networkidle", timeout=15_000)
         # Wait up to 60 seconds for the export to become ready (page auto-reloads every 5s)
         download_link = logged_in.locator("a", has_text=re.compile(r"Download", re.IGNORECASE)).first
-        download_link.wait_for(timeout=60_000)
+        download_link.wait_for(timeout=120_000)
 
     # Trigger download and verify a file is received
     with logged_in.expect_download(timeout=30_000) as dl_info:

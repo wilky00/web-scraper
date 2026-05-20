@@ -104,8 +104,8 @@ def test_inline_edit_save(logged_in: Page) -> None:
     logged_in.locator("button", has_text=re.compile(r"^Save$", re.IGNORECASE)).click()
     logged_in.wait_for_url(re.compile(r".*/records/[a-f0-9-]+$"), timeout=15_000)
 
-    # Verify updated name is shown on the detail page
-    expect(logged_in.locator(f"text={original_name}{suffix}")).to_be_visible(timeout=10_000)
+    # Name appears in both h1 and #record-fields dd — use h1 to avoid strict mode violation
+    expect(logged_in.locator("h1")).to_contain_text(original_name + suffix)
 
 
 @pytest.mark.e2e
@@ -120,11 +120,8 @@ def test_delete_record(logged_in: Page) -> None:
     logged_in.locator('#add-name, input[name="name"]').first.wait_for(timeout=5_000)
     logged_in.locator('#add-name, input[name="name"]').first.fill(record_name)
     logged_in.locator('button[type="submit"]', has_text=re.compile(r"Add Record", re.IGNORECASE)).click()
-    logged_in.wait_for_load_state("networkidle", timeout=15_000)
-
-    # Navigate to the newly created record
-    logged_in.locator(f"text={record_name}").first.click()
-    logged_in.wait_for_url(re.compile(r".*/records/[a-f0-9-]+"), timeout=10_000)
+    # submitAdd redirects to the new record's detail page via HX-Redirect
+    logged_in.wait_for_url(re.compile(r".*/records/[a-f0-9-]{36}"), timeout=15_000)
 
     # Click edit then set status to deleted
     edit_btn = logged_in.locator("a", has_text=re.compile(r"Edit", re.IGNORECASE)).first
@@ -153,16 +150,12 @@ def test_add_record_modal(logged_in: Page) -> None:
     name_input.wait_for(timeout=5_000)
     name_input.fill(record_name)
 
-    # Optionally fill website
-    website_input = logged_in.locator('[name="website"]').first
-    if website_input.is_visible(timeout=1_000):
-        website_input.fill("https://e2e-test.example.com")
-
     logged_in.locator('button[type="submit"]', has_text=re.compile(r"Add Record", re.IGNORECASE)).click()
-    logged_in.wait_for_load_state("networkidle", timeout=15_000)
+    # submitAdd redirects to /records/{id} via HX-Redirect header
+    logged_in.wait_for_url(re.compile(r".*/records/[a-f0-9-]{36}"), timeout=15_000)
 
-    # Should redirect to the new record detail page
-    expect(logged_in.locator(f"text={record_name}")).to_be_visible(timeout=10_000)
+    # Record name appears in h1 on the detail page
+    expect(logged_in.locator("h1")).to_contain_text(record_name)
 
 
 @pytest.mark.e2e
