@@ -143,7 +143,22 @@ class GooglePlacesConnector(ConnectorBase):
             "phone": raw_data.get("nationalPhoneNumber") or None,
             "address": raw_data.get("formattedAddress") or None,
             "email": None,  # Places API does not expose email
+            "external_id": raw_data.get("id") or None,
         }
+
+    def extract_metrics(self, raw_data: dict[str, Any]) -> dict[str, Any]:
+        metrics: dict[str, Any] = {}
+        if "rating" in raw_data:
+            metrics["source.rating"] = raw_data["rating"]
+        if "userRatingCount" in raw_data:
+            metrics["source.review_count"] = raw_data["userRatingCount"]
+        if "businessStatus" in raw_data:
+            metrics["source.business_status"] = raw_data["businessStatus"]
+        if "types" in raw_data:
+            metrics["source.types"] = raw_data["types"]
+        if "id" in raw_data:
+            metrics["source.place_id"] = raw_data["id"]
+        return metrics
 
     def _resolve_query_params(self, job_config: dict[str, Any]) -> tuple[str, str | None, int]:
         """Extract query, location, and max_results from job_config.

@@ -29,6 +29,9 @@ class BusinessRecord(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     location_state: Mapped[str | None] = mapped_column(String(100), nullable=True)
     location_country: Mapped[str | None] = mapped_column(String(100), nullable=True)
 
+    # Stable external identifier from the connector (e.g. Google Places place_id)
+    external_id: Mapped[str | None] = mapped_column(String(512), nullable=True, index=True)
+
     # Scoring output
     match_score: Mapped[Decimal | None] = mapped_column(
         Numeric(precision=5, scale=2), nullable=True

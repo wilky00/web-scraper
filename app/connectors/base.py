@@ -35,6 +35,14 @@ class ConnectorBase(ABC):
         """
         return {}
 
+    def extract_metrics(self, raw_data: dict[str, Any]) -> dict[str, Any]:
+        """Return connector-specific scoring metrics keyed by 'namespace.field'.
+
+        Default returns empty dict. Connectors with rich data fields (ratings,
+        review counts, business status) override this to expose them for scoring.
+        """
+        return {}
+
     @abstractmethod
     async def discover(self, job_config: dict[str, Any]) -> AsyncIterator[ConnectorResult]:
         """Yield raw search results for the given job configuration.

@@ -96,6 +96,17 @@ async function loadCriteriaTemplate(groupId) {
         ta.dispatchEvent(new Event('input'));
         ta.focus();
         ta.scrollIntoView({ behavior: 'smooth', block: 'start' });
+
+        // Refresh version history panel title and list
+        const titleEl = document.getElementById('version-history-title');
+        if (titleEl && data.display_name) {
+            titleEl.textContent = 'Version History: ' + data.display_name;
+        }
+        const vhResp = await fetch('/api/criteria/' + groupId + '/versions');
+        if (vhResp.ok) {
+            const contentEl = document.getElementById('version-history-content');
+            if (contentEl) contentEl.innerHTML = await vhResp.text();
+        }
     } catch (e) {
         console.error('loadCriteriaTemplate failed', e);
     }
@@ -405,8 +416,9 @@ function scoringPanel() {
             <div class="space-y-4">
                 <div class="rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 shadow-sm overflow-hidden">
                     <div class="px-4 py-3 border-b border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900/50">
-                        <h2 class="text-sm font-semibold text-gray-700 dark:text-gray-300">Version History</h2>
+                        <h2 id="version-history-title" class="text-sm font-semibold text-gray-700 dark:text-gray-300 truncate">{% if group %}Version History: {{ group.display_name }}{% else %}Version History{% endif %}</h2>
                     </div>
+                    <div id="version-history-content">
                     {% if not group %}
                     <div class="px-4 py-6 text-center">
                         <p class="text-sm text-gray-400 dark:text-gray-500">No versions yet. Save this criteria to create version 1.</p>
@@ -440,6 +452,7 @@ function scoringPanel() {
                         <p class="text-sm text-gray-400 dark:text-gray-500">No versions found.</p>
                     </div>
                     {% endif %}
+                    </div>
                 </div>
 
                 <!-- Templates picker -->

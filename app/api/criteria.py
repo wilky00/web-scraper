@@ -533,15 +533,16 @@ async def get_criteria_yaml(
             .limit(1)
         )
         version = result.scalar_one_or_none()
-    if version is None:
-        return JSONResponse({"error": "Not found"}, status_code=404)
+        if version is None:
+            return JSONResponse({"error": "Not found"}, status_code=404)
+        group = await db.get(CriteriaGroup, group_id)
     yaml_text = yaml.dump(
         version.config_snapshot,
         default_flow_style=False,
         allow_unicode=True,
         sort_keys=False,
     )
-    return JSONResponse({"yaml": yaml_text})
+    return JSONResponse({"yaml": yaml_text, "display_name": group.display_name if group else ""})
 
 
 @router.get("/api/criteria/{group_id}/versions", response_class=HTMLResponse)

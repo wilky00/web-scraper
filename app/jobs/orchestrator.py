@@ -88,6 +88,24 @@ async def run_job(
             connector_fields = connector.extract_fields(conn_result.raw_data)
             website_url = connector_fields.get("website")
 
+            # Skip records already stored from a previous run via stable external_id
+            external_id = connector_fields.get("external_id")
+            if external_id:
+                existing = await session.execute(
+                    select(BusinessRecord).where(BusinessRecord.external_id == external_id).limit(1)
+                )
+                if existing.scalar_one_or_none() is not None:
+                    raw.processed = True
+                    await log_crawl_event(
+                        session,
+                        job_id,
+                        "record_skipped",
+                        f"Skipped existing record: {connector_fields.get('name') or external_id}",
+                        {"external_id": external_id},
+                    )
+                    await session.commit()
+                    continue
+
             fetch_result: FetchResult | None = None
             extraction: ExtractionResult | None = None
 
@@ -115,7 +133,12 @@ async def run_job(
             _add_sources(session, record, connector_fields, extraction, conn_result.connector_type)
 
             metrics = _build_metrics(
-                extraction, connector_fields, fetch_result, conn_result.connector_type
+                extraction,
+                connector_fields,
+                fetch_result,
+                conn_result.connector_type,
+                connector=connector,
+                raw_data=conn_result.raw_data,
             )
             scoring = ScoringEngine.score(metrics, criteria)
             record.match_score = Decimal(str(scoring.match_score))
@@ -268,6 +291,7 @@ def _build_record(
         address=address,
         location_city=connector_fields.get("location_city"),
         location_state=connector_fields.get("location_state"),
+        external_id=connector_fields.get("external_id"),
         status="active",
     )
 
@@ -363,6 +387,8 @@ def _build_metrics(
     connector_fields: dict[str, str | None],
     fetch_result: FetchResult | None,
     connector_type: str,
+    connector: ConnectorBase | None = None,
+    raw_data: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     """Build the metrics dict for ScoringEngine.score()."""
     metrics: dict[str, Any] = {"source.connector_type": connector_type}
@@ -395,6 +421,10 @@ def _build_metrics(
             metrics["crawl.status_code"] = fetch_result.status_code
         metrics["crawl.depth"] = fetch_result.depth
 
+    # Connector-specific rich metrics (ratings, review counts, types, etc.)
+    if connector is not None and raw_data is not None:
+        metrics.update(connector.extract_metrics(raw_data))
+
     return metrics
 
 
@@ -407,10 +437,7 @@ async def _run_dedup(
     log: Any,
 ) -> None:
     """Identify and mark duplicate BusinessRecords for this job."""
-    stmt = select(BusinessRecord).where(
-        BusinessRecord.job_id == job_id,
-        BusinessRecord.status == "active",
-    )
+    stmt = select(BusinessRecord).where(BusinessRecord.status == "active")
     result = await session.execute(stmt)
     orm_records = list(result.scalars())
 
