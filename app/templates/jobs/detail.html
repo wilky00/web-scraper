@@ -1,68 +1,79 @@
 {% extends "base.html" %}
-{% block title %}Job {{ job.id_short }}… — Web Scraper{% endblock %}
+{% block title %}Job #{{ job.job_number }} — Web Scraper{% endblock %}
+{% block head %}
+{# Events data in a script tag so JSON double-quotes don't break the x-data attribute. #}
+<script id="jd-events" type="application/json">{{ events | tojson }}</script>
+<script>
+document.addEventListener('alpine:init', () => {
+    Alpine.data('jobDetail', () => ({
+        status: '{{ job.status }}',
+        recordCount: {{ job.record_count }},
+        jobId: '{{ job.id }}',
+        csrfToken: '{{ csrf_token }}',
+        events: JSON.parse(document.getElementById('jd-events').textContent || '[]'),
+        _active: ['queued', 'running', 'cancel_requested'],
+
+        get isActive() { return this._active.includes(this.status); },
+
+        init() {
+            if (this.isActive) this._schedulePoll();
+        },
+
+        _schedulePoll() {
+            setTimeout(() => this._poll(), 2000);
+        },
+
+        async _poll() {
+            try {
+                const resp = await fetch('/api/jobs/' + this.jobId);
+                if (!resp.ok) return;
+                const d = await resp.json();
+                this.status = d.status;
+                this.recordCount = d.record_count;
+                this.events = d.events || [];
+            } catch (_) {}
+            if (this.isActive) this._schedulePoll();
+        },
+
+        statusBadgeClass() {
+            const m = {
+                completed: 'bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-300',
+                completed_with_errors: 'bg-yellow-100 dark:bg-yellow-900/30 text-yellow-800 dark:text-yellow-300',
+                running: 'bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-300',
+                failed: 'bg-red-100 dark:bg-red-900/30 text-red-800 dark:text-red-300',
+                paused: 'bg-purple-100 dark:bg-purple-900/30 text-purple-800 dark:text-purple-300',
+            };
+            return m[this.status] || 'bg-orange-100 dark:bg-orange-900/30 text-orange-800 dark:text-orange-300';
+        },
+
+        statusLabel() {
+            const m = { completed_with_errors: 'completed (errors)' };
+            return m[this.status] || this.status;
+        },
+
+        async jobAction(action) {
+            try {
+                const resp = await fetch('/api/jobs/' + this.jobId + '/' + action, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ csrf_token: this.csrfToken }),
+                });
+                if (!resp.ok) {
+                    const d = await resp.json();
+                    alert(d.error || 'Action failed');
+                    return;
+                }
+                window.location.reload();
+            } catch (_) {
+                alert('Network error — please try again.');
+            }
+        },
+    }));
+});
+</script>
+{% endblock %}
 {% block content %}
-<div class="min-h-screen p-8"
-     x-data="{
-         status: '{{ job.status }}',
-         recordCount: {{ job.record_count }},
-         events: {{ events | tojson }},
-         _active: ['queued','running','cancel_requested'],
-         get isActive() { return this._active.includes(this.status); },
-
-         init() {
-             if (this.isActive) this._schedulePoll();
-         },
-
-         _schedulePoll() {
-             setTimeout(() => this._poll(), 2000);
-         },
-
-         async _poll() {
-             try {
-                 const resp = await fetch('/api/jobs/{{ job.id }}');
-                 if (!resp.ok) return;
-                 const d = await resp.json();
-                 this.status = d.status;
-                 this.recordCount = d.record_count;
-                 this.events = d.events || [];
-             } catch (_) {}
-             if (this.isActive) this._schedulePoll();
-         },
-
-         statusBadgeClass() {
-             const m = {
-                 completed: 'bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-300',
-                 completed_with_errors: 'bg-yellow-100 dark:bg-yellow-900/30 text-yellow-800 dark:text-yellow-300',
-                 running: 'bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-300',
-                 failed: 'bg-red-100 dark:bg-red-900/30 text-red-800 dark:text-red-300',
-                 paused: 'bg-purple-100 dark:bg-purple-900/30 text-purple-800 dark:text-purple-300',
-             };
-             return m[this.status] || 'bg-orange-100 dark:bg-orange-900/30 text-orange-800 dark:text-orange-300';
-         },
-
-         statusLabel() {
-             const m = { completed_with_errors: 'completed (errors)' };
-             return m[this.status] || this.status;
-         },
-
-         async jobAction(url) {
-             try {
-                 const resp = await fetch(url, {
-                     method: 'POST',
-                     headers: { 'Content-Type': 'application/json' },
-                     body: JSON.stringify({ csrf_token: '{{ csrf_token }}' })
-                 });
-                 if (!resp.ok) {
-                     const d = await resp.json();
-                     alert(d.error || 'Action failed');
-                     return;
-                 }
-                 window.location.reload();
-             } catch (_) {
-                 alert('Network error — please try again.');
-             }
-         }
-     }">
+<div class="min-h-screen p-8" x-data="jobDetail">
     <div class="mx-auto max-w-6xl">
 
         <div class="mb-6">
@@ -72,7 +83,7 @@
         <div class="mb-8 flex flex-wrap items-start justify-between gap-4">
             <div>
                 <div class="flex items-center gap-3 flex-wrap">
-                    <h1 class="font-mono text-2xl font-semibold tracking-tight text-gray-900 dark:text-gray-100">{{ job.id_short }}…</h1>
+                    <h1 class="text-2xl font-semibold tracking-tight text-gray-900 dark:text-gray-100">#{{ job.job_number }}</h1>
                     <span class="inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium"
                           :class="statusBadgeClass()"
                           x-text="statusLabel()"></span>
@@ -84,12 +95,12 @@
                 <template x-if="status === 'running'">
                     <div class="flex items-center gap-2">
                         <button type="button"
-                            @click="jobAction('/api/jobs/{{ job.id }}/pause')"
+                            @click="jobAction('pause')"
                             class="rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 px-3 py-1.5 text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500">
                             Pause
                         </button>
                         <button type="button"
-                            @click="jobAction('/api/jobs/{{ job.id }}/cancel')"
+                            @click="jobAction('cancel')"
                             class="rounded-md border border-red-300 dark:border-red-700 bg-white dark:bg-gray-800 px-3 py-1.5 text-sm font-medium text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 focus:outline-none focus:ring-2 focus:ring-red-500">
                             Cancel
                         </button>
@@ -97,7 +108,7 @@
                 </template>
                 <template x-if="status === 'queued'">
                     <button type="button"
-                        @click="jobAction('/api/jobs/{{ job.id }}/cancel')"
+                        @click="jobAction('cancel')"
                         class="rounded-md border border-red-300 dark:border-red-700 bg-white dark:bg-gray-800 px-3 py-1.5 text-sm font-medium text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 focus:outline-none focus:ring-2 focus:ring-red-500">
                         Cancel
                     </button>
@@ -105,12 +116,12 @@
                 <template x-if="status === 'paused'">
                     <div class="flex items-center gap-2">
                         <button type="button"
-                            @click="jobAction('/api/jobs/{{ job.id }}/resume')"
+                            @click="jobAction('resume')"
                             class="rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 px-3 py-1.5 text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500">
                             Resume
                         </button>
                         <button type="button"
-                            @click="jobAction('/api/jobs/{{ job.id }}/cancel')"
+                            @click="jobAction('cancel')"
                             class="rounded-md border border-red-300 dark:border-red-700 bg-white dark:bg-gray-800 px-3 py-1.5 text-sm font-medium text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 focus:outline-none focus:ring-2 focus:ring-red-500">
                             Cancel
                         </button>

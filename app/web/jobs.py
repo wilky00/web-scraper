@@ -190,7 +190,7 @@ async def jobs_list(
     jobs_data = [
         {
             "id": str(j.id),
-            "id_short": str(j.id)[:8],
+            "job_number": j.job_number,
             "status": j.status,
             "connector_name": connector_names.get(str(j.connector_id), "—"),
             "criteria_name": criteria_names.get(str(j.criteria_version_id), "—"),
@@ -249,7 +249,7 @@ async def _load_job_detail(
 
     job_data: dict[str, object] = {
         "id": str(job.id),
-        "id_short": str(job.id)[:8],
+        "job_number": job.job_number,
         "status": job.status,
         "connector_name": connector_names.get(str(job.connector_id), "—"),
         "criteria_name": criteria_names.get(str(job.criteria_version_id), "—"),

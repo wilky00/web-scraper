@@ -6,7 +6,7 @@ import uuid
 from datetime import datetime
 from typing import Any
 
-from sqlalchemy import DateTime, ForeignKey, String, Text, func
+from sqlalchemy import DateTime, ForeignKey, Integer, String, Text, func, text
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -34,6 +34,10 @@ class CrawlJob(UUIDPrimaryKeyMixin, TimestampMixin, Base):
         ForeignKey("projects.id", ondelete="SET NULL"), nullable=True, index=True
     )
     rq_job_id: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    job_number: Mapped[int] = mapped_column(
+        Integer, nullable=False, unique=True,
+        server_default=text("nextval('crawl_jobs_job_number_seq')")
+    )
 
     events: Mapped[list[CrawlJobEvent]] = relationship(
         "CrawlJobEvent", back_populates="job", order_by="CrawlJobEvent.created_at"
