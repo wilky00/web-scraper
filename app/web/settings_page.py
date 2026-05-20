@@ -12,6 +12,7 @@ from fastapi.templating import Jinja2Templates
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.ai.pricing import fetch_model_pricing
 from app.auth.permissions import require_operator
 from app.auth.session import SESSION_COOKIE, get_session
 from app.models.user import User
@@ -85,6 +86,11 @@ async def settings_page(
             for u in users_result.scalars()
         ]
 
+    ai_config = getattr(getattr(request.app.state, "config", None), "ai", None)
+    model_pricing: list[dict] = []
+    if ai_config is not None:
+        model_pricing = await fetch_model_pricing(request.app.state.redis, ai_config)
+
     return templates.TemplateResponse(
         request,
         "settings.html",
@@ -94,5 +100,7 @@ async def settings_page(
             "config_sections": config_sections,
             "has_api_token": user.api_key_hash is not None,
             "users_list": users_list,
+            "model_pricing": model_pricing,
+            "ai_provider": ai_config.provider if ai_config else None,
         },
     )

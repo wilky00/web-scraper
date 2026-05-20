@@ -92,6 +92,46 @@
 
         <hr class="border-gray-200 dark:border-gray-700 mb-8">
 
+        {% if model_pricing %}
+        <!-- Token Costs -->
+        <section class="mb-8">
+            <div class="flex items-baseline justify-between mb-2">
+                <h2 class="text-base font-semibold text-gray-800 dark:text-gray-200">Token Costs</h2>
+                <span class="text-xs text-gray-400 dark:text-gray-500">via LiteLLM pricing · {{ ai_provider or 'unknown' }} provider</span>
+            </div>
+            <div class="overflow-hidden rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 shadow-sm">
+                <table class="min-w-full divide-y divide-gray-200 dark:divide-gray-700 text-sm">
+                    <thead class="bg-gray-50 dark:bg-gray-900/50">
+                        <tr>
+                            <th scope="col" class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">Model</th>
+                            <th scope="col" class="px-4 py-3 text-right text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">Input / 1M tokens</th>
+                            <th scope="col" class="px-4 py-3 text-right text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">Output / 1M tokens</th>
+                            <th scope="col" class="px-4 py-3 text-right text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">Context window</th>
+                        </tr>
+                    </thead>
+                    <tbody class="divide-y divide-gray-100 dark:divide-gray-700/50">
+                        {% for row in model_pricing %}
+                        <tr class="hover:bg-gray-50 dark:hover:bg-gray-700/30 transition-colors">
+                            <td class="px-4 py-3 font-mono text-xs text-gray-700 dark:text-gray-300">{{ row.model }}</td>
+                            <td class="px-4 py-3 text-right text-sm text-gray-700 dark:text-gray-300">
+                                {% if row.input_per_1m is not none %}${{ "%.4f"|format(row.input_per_1m) }}{% else %}<span class="text-gray-400 dark:text-gray-500">—</span>{% endif %}
+                            </td>
+                            <td class="px-4 py-3 text-right text-sm text-gray-700 dark:text-gray-300">
+                                {% if row.output_per_1m is not none %}${{ "%.4f"|format(row.output_per_1m) }}{% else %}<span class="text-gray-400 dark:text-gray-500">—</span>{% endif %}
+                            </td>
+                            <td class="px-4 py-3 text-right text-sm text-gray-500 dark:text-gray-400">
+                                {% if row.context_window %}{{ "{:,}".format(row.context_window) }}{% else %}<span class="text-gray-400 dark:text-gray-500">—</span>{% endif %}
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </section>
+
+        <hr class="border-gray-200 dark:border-gray-700 mb-8">
+
+        {% endif %}
         {% set section_filenames = {
             'app': 'config/app.yml',
             'connectors': 'config/connectors.yml',
