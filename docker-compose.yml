@@ -73,6 +73,26 @@ services:
     networks:
       - internal
 
+  litellm:
+    # Pin to a specific release tag before running in production — main-stable drifts.
+    # See https://github.com/BerriAI/litellm/releases for versioned tags.
+    image: ghcr.io/berriai/litellm:main-stable
+    restart: unless-stopped
+    volumes:
+      - ./config/litellm_config.yaml:/app/config.yaml:ro
+    environment:
+      LITELLM_MASTER_KEY: ${AI_API_KEY}
+      OPENROUTER_API_KEY: ${OPENROUTER_API_KEY}
+    command: ["--config", "/app/config.yaml", "--port", "4000"]
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:4000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 20s
+    networks:
+      - internal
+
   minio:
     image: minio/minio:RELEASE.2024-07-29T22-14-52Z
     restart: unless-stopped

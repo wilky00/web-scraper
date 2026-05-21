@@ -1,0 +1,34 @@
+# LiteLLM proxy configuration — routes all AI requests through OpenRouter.
+# API key for each model is read from the OPENROUTER_API_KEY environment variable.
+# The proxy's own auth key is LITELLM_MASTER_KEY (set to the same value as AI_API_KEY).
+#
+# To add more models: duplicate a block, change model_name and the openrouter/... path.
+# Full options: https://docs.litellm.ai/docs/proxy/configs
+
+model_list:
+  - model_name: anthropic/claude-3-5-sonnet
+    litellm_params:
+      model: openrouter/anthropic/claude-3-5-sonnet
+      api_key: os.environ/OPENROUTER_API_KEY
+      api_base: https://openrouter.ai/api/v1
+
+  - model_name: anthropic/claude-3-haiku
+    litellm_params:
+      model: openrouter/anthropic/claude-3-haiku
+      api_key: os.environ/OPENROUTER_API_KEY
+      api_base: https://openrouter.ai/api/v1
+
+  - model_name: openai/gpt-4o
+    litellm_params:
+      model: openrouter/openai/gpt-4o
+      api_key: os.environ/OPENROUTER_API_KEY
+      api_base: https://openrouter.ai/api/v1
+
+litellm_settings:
+  # Silently drop params that a specific model doesn't support (e.g. temperature on o-series)
+  drop_params: true
+  # Log spend per request — viewable in LiteLLM's dashboard UI if you add a DB
+  success_callback: []
+
+general_settings:
+  master_key: os.environ/LITELLM_MASTER_KEY

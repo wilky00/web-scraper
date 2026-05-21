@@ -89,7 +89,10 @@ async def settings_page(
     ai_config = getattr(getattr(request.app.state, "config", None), "ai", None)
     model_pricing: list[dict] = []
     if ai_config is not None:
-        model_pricing = await fetch_model_pricing(request.app.state.redis, ai_config)
+        settings: Settings = request.app.state.settings
+        model_pricing = await fetch_model_pricing(
+            request.app.state.redis, ai_config, api_key=settings.ai_api_key
+        )
 
     return templates.TemplateResponse(
         request,

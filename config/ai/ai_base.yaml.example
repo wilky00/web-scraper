@@ -1,16 +1,17 @@
 # AI Assist endpoint configuration — non-secret options only.
-# The API key must live in .env as AI_API_KEY.
+# The LiteLLM master key lives in .env as AI_API_KEY.
+# The OpenRouter API key lives in .env as OPENROUTER_API_KEY (passed to LiteLLM).
 
-# provider: openrouter | anthropic | openai | litellm
-provider: openrouter
-base_url: "https://openrouter.ai/api/v1"
+# provider: litellm | openrouter | anthropic | openai
+# Use 'litellm' when running the LiteLLM proxy (recommended — see docker-compose.yml).
+provider: litellm
+base_url: "http://litellm:4000/v1"
 model: "anthropic/claude-3-5-sonnet"
 max_tokens: 4096
 temperature: 0.3
 
-# Explicit model allowlist — only these models appear in the UI dropdown.
-# When set, the provider's /models endpoint is never called.
-# Leave empty ([]) to fetch all models from the provider automatically.
+# Explicit model allowlist — must match model_name entries in config/litellm_config.yaml.
+# Leave empty ([]) to fetch the list from LiteLLM's /models endpoint automatically.
 models:
   - "anthropic/claude-3-5-sonnet"
   - "anthropic/claude-3-haiku"
